@@ -56,5 +56,11 @@ namespace Flowsy.Db.Sql.Resources {
                 return ResourceManager.GetString("InvalidConnectionKey", resourceCulture);
             }
         }
+        
+        internal static string CouldNotGetConnection {
+            get {
+                return ResourceManager.GetString("CouldNotGetConnection", resourceCulture);
+            }
+        }
     }
 }

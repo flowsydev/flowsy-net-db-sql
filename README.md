@@ -8,6 +8,116 @@ oriented to SQL databases.
 The class **DbConnectionFactory** implements the interface **IDbConnectionFactory** to
 create **IDbConnection** objects from a list of registered configurations identified by unique keys.
 
+## Repositories
+The class DbRepository offers the foundation to implement the repository pattern.
+
+Let's create an interface for a fictitious user repository:
+```csharp
+public interface IUserRepository
+{
+    Task<User?> GetByIdAsync(Guid userId, CancellationToken cancellationToken);
+    Task<User?> GetByEmailAsync(string email, CancellationToken cancellationToken);
+}
+```
+
+Now we need to implement our interface:
+```csharp
+public class UserRepository : DbRepository, IUserRepository
+{
+    public UserRepository(IDbConnectionFactory connectionFactory, DbExceptionHandler? exceptionHandler = null) 
+        : base(connectionFactory, exceptionHandler)
+    {
+    }
+
+    public UserRepository(IDbConnection connection, DbExceptionHandler? exceptionHandler = null)
+        : base(connection, exceptionHandler)
+    {
+    }
+
+    public UserRepository(IDbTransaction transaction, DbExceptionHandler? exceptionHandler = null)
+        : base(transaction, exceptionHandler)
+    {
+    }
+
+    public Task<User?> GetByIdAsync(Guid userId, CancellationToken cancellationToken)
+    {
+        // Invoke a stored routine: user_get_by_id(uuid)
+        return GetSingleOrDefaultAsync<User>(
+            "user_get_by_id",
+            new
+            {
+                UserId = userId
+            },
+            cancellationToken
+            );
+    }
+    
+    public Task<User?> GetByEmailAsync(string email, CancellationToken cancellationToken)
+    {
+        // Invoke a stored routine: user_get_by_email(varchar)
+        return GetSingleOrDefaultAsync<User>(
+            "user_get_by_email",
+            new
+            {
+                Email = email
+            },
+            cancellationToken
+        );
+    }
+}
+```
+
+### Repositories & Dependency Injection
+```csharp
+var builder = WebApplication.CreateBuilder(args);
+
+// Register a DbConnectionFactory service with the required configurations taken from the application settings
+builder.Services.AddDbConnectionFactory(serviceProvider =>
+    {
+      var configuration = serviceProvider.GetRequiredService<IConfiguration>();
+      var sqlConfiguration = configuration.GetRequiredSection("Databases");
+      var dbConnectionConfigurations = 
+          sqlConfiguration.GetChildren().Select(databaseConfiguration => new DbConnectionConfiguration
+          {
+              Key = databaseConfiguration.Key,
+              ProviderInvariantName = databaseConfiguration["ProviderInvariantName"],
+              ConnectionString = databaseConfiguration["ConnectionString"]
+          });
+  
+      return new DbConnectionFactory(dbConnectionConfigurations.ToArray());
+    });
+
+// Register repositories and configure their options
+builder.Services
+    .AddRepositories(options =>
+    {
+        // All settings are optional and a default value will be used if none is provided.
+        options.ConnectionKey = "Default";
+        options.Schema = "public";
+        
+        options.Conventions.DateTimeOffsetFormat = DbDateTimeOffsetFormat.Utc;
+        
+        options.Conventions.Routines.DefaultType = DbRoutineType.StoredFunction;
+        options.Conventions.Routines.Prefix = "sf_";
+        options.Conventions.Routines.Casing = CaseConvention.LowerSnakeCase;
+        
+        options.Conventions.Parameters.Prefix = "p_";
+        options.Conventions.Parameters.FormatPlaceholder = (_, routineType, parameterName, _) =>
+        {
+            return routineType switch
+            {
+                DbRoutineType.StoredFunction => $"{parameterName} => @{parameterName}",
+                _ => $"@{parameterName}"
+            };
+        };
+
+        options.Conventions.Enums.ValueFormat = DbEnumFormat.Name;
+    })
+    .Using<IUserRepository, UserRepository>(options =>
+    {
+        options.Schema = "auth";
+    });
+```
 
 ## Unit Of Work
 

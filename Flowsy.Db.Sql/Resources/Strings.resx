@@ -24,4 +24,7 @@
     <data name="InvalidConnectionKey" xml:space="preserve">
         <value>Invalid connection key: %s.</value>
     </data>
+    <data name="CouldNotGetConnection" xml:space="preserve">
+        <value>Could not get a database connection.</value>
+    </data>
 </root>

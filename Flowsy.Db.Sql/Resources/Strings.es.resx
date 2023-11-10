@@ -17,4 +17,7 @@
     <data name="InvalidConnectionKey" xml:space="preserve">
         <value>Identificador de conexión no válido: %s.</value>
     </data>
+    <data name="CouldNotGetConnection" xml:space="preserve">
+        <value>No se pudo obtener una conexión de base de datos.</value>
+    </data>
 </root>

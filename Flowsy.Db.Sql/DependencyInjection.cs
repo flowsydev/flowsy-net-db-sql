@@ -22,4 +22,14 @@ public static class DependencyInjection
         services.AddSingleton(implementationFactory);
         return services;
     }
+
+    public static DbRepositoryBuilder AddRepositories(
+        this IServiceCollection services,
+        Action<DbRepositoryOptions> configureDefaults
+        )
+    {
+        var defaults = new DbRepositoryOptions();
+        configureDefaults?.Invoke(defaults);
+        return new DbRepositoryBuilder(services, defaults);
+    }
 }
