@@ -36,6 +36,7 @@ public class DbRepositoryBuilder
     {
         var options = _defaultOptions.Clone();
         configure?.Invoke(options);
+        DbRepositoryOptions.Register(implementationType, options);
         _services.AddTransient(abstractionType, implementationType);
         return this;
     }
@@ -47,10 +48,11 @@ public class DbRepositoryBuilder
     /// <param name="configure">Action to execute to configure repository options.</param>
     /// <typeparam name="TService">The service type.</typeparam>
     public DbRepositoryBuilder Using<TService>(Func<IServiceProvider, TService> implementationFactory, Action<DbRepositoryOptions>? configure = null) 
-        where TService : class
+        where TService : DbRepository
     {        
         var options = _defaultOptions.Clone();
         configure?.Invoke(options);
+        DbRepositoryOptions.Register<TService>(options);
         _services.AddTransient(implementationFactory);
         return this;
     }
