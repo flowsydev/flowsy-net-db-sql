@@ -110,6 +110,7 @@ builder.Services
         options.Conventions.Routines.Casing = CaseConvention.LowerSnakeCase;
     
         options.Conventions.Parameters.Prefix = "p_";
+        options.Conventions.Parameters.Casing = CaseConvention.LowerSnakeCase;
         options.Conventions.Parameters.FormatPlaceholder = (_, routineType, parameterName, _) =>
         {
             return routineType switch

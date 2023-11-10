@@ -49,8 +49,8 @@ public abstract partial class DbRepository
     /// <param name="routineSimpleName">The routine simple name (UserCreate, UserPatchEmail, UserDelete, etc.)</param>
     /// <param name="param">The parameters for the routine.</param>
     /// <param name="cancellationToken">The cancellation token for the query.</param>
-    /// <typeparam name="T"></typeparam>
-    /// <returns></returns>
+    /// <typeparam name="T">The type of the expected result.</typeparam>
+    /// <returns>The list of results.</returns>
     protected virtual Task<IEnumerable<T>> GetManyAsync<T>(
         string routineSimpleName,
         dynamic param,
@@ -65,8 +65,8 @@ public abstract partial class DbRepository
     /// <param name="routineType">The type of routine.</param>
     /// <param name="param">The parameters for the routine.</param>
     /// <param name="cancellationToken">The cancellation token for the query.</param>
-    /// <typeparam name="T"></typeparam>
-    /// <returns></returns>
+    /// <typeparam name="T">The type of the expected result.</typeparam>
+    /// <returns>The list of results.</returns>
     protected virtual Task<IEnumerable<T>> GetManyAsync<T>(
         string routineSimpleName,
         DbRoutineType? routineType,

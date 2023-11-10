@@ -6,12 +6,18 @@ namespace Flowsy.Db.Sql;
 public abstract partial class DbRepository
 {
     /// <summary>
+    /// Resolves the name of a database schema using the options set for this repository. 
+    /// </summary>
+    /// <returns></returns>
+    protected virtual string? ResolveSchemaName() => Options.Schema;
+    
+    /// <summary>
     /// Resolves the name for a stored routine using the conventions set for this repository.
     /// </summary>
     /// <param name="simpleName">The routine simple name.</param>
     /// <returns>The final routine name.</returns>
     protected virtual string ResolveRoutineName(string simpleName)
-        => Options.Conventions.Routines.Format(simpleName);
+        => Options.Conventions.Routines.Format(simpleName, ResolveSchemaName());
 
     /// <summary>
     /// Resolves the default routine type using the conventions set for this repository.
