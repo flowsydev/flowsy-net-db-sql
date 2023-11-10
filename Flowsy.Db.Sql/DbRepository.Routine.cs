@@ -40,8 +40,23 @@ public abstract partial class DbRepository
             Transaction,
             commandType: ResolveRoutineCommandType(routineType),
             cancellationToken: cancellationToken
-        ));
+            ));
     }
+
+    /// <summary>
+    /// Executes a stored routine and returns a list of results.
+    /// </summary>
+    /// <param name="routineSimpleName">The routine simple name (UserCreate, UserPatchEmail, UserDelete, etc.)</param>
+    /// <param name="param">The parameters for the routine.</param>
+    /// <param name="cancellationToken">The cancellation token for the query.</param>
+    /// <typeparam name="T"></typeparam>
+    /// <returns></returns>
+    protected virtual Task<IEnumerable<T>> GetManyAsync<T>(
+        string routineSimpleName,
+        dynamic param,
+        CancellationToken cancellationToken
+        )
+        => GetManyAsync<T>(routineSimpleName, ResolveRoutineType(), (object) param, cancellationToken);
     
     /// <summary>
     /// Executes a stored routine and returns a list of results.
@@ -66,7 +81,7 @@ public abstract partial class DbRepository
             Transaction,
             commandType: ResolveRoutineCommandType(routineType),
             cancellationToken: cancellationToken
-        ));
+            ));
     }
 
     /// <summary>
