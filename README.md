@@ -3,15 +3,17 @@
 This package includes implementations for interfaces defined in [Flows.Db.Abstractions](https://www.nuget.org/packages/Flowsy.Db.Abstractions)
 oriented to SQL databases.
 
-
 ## Connection Factory
+
 The class **DbConnectionFactory** implements the interface **IDbConnectionFactory** to
 create **IDbConnection** objects from a list of registered configurations identified by unique keys.
 
 ## Repositories
+
 The class DbRepository offers the foundation to implement the repository pattern.
 
 Let's create an interface for a fictitious user repository:
+
 ```csharp
 public interface IUserRepository
 {
@@ -21,6 +23,7 @@ public interface IUserRepository
 ```
 
 Now we need to implement our interface:
+
 ```csharp
 public class UserRepository : DbRepository, IUserRepository
 {
@@ -51,7 +54,7 @@ public class UserRepository : DbRepository, IUserRepository
             cancellationToken
             );
     }
-    
+  
     public Task<User?> GetByEmailAsync(string email, CancellationToken cancellationToken)
     {
         // Invoke a stored routine: user_get_by_email(varchar)
@@ -67,8 +70,12 @@ public class UserRepository : DbRepository, IUserRepository
 }
 ```
 
+By inheriting from DbRepository we can reuse its methods to execute SQL statements and routines without writing many lines of boilerplate code.
+
 ### Repositories & Dependency Injection
+
 ```csharp
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Register a DbConnectionFactory service with the required configurations taken from the application settings
@@ -91,16 +98,17 @@ builder.Services.AddDbConnectionFactory(serviceProvider =>
 builder.Services
     .AddRepositories(options =>
     {
-        // All settings are optional and a default value will be used if none is provided.
+        // Configure default options for all repository types.
+        // All settings are optional, they have default values to use if a custom value is not set.
         options.ConnectionKey = "Default";
         options.Schema = "public";
-        
+    
         options.Conventions.DateTimeOffsetFormat = DbDateTimeOffsetFormat.Utc;
-        
+    
         options.Conventions.Routines.DefaultType = DbRoutineType.StoredFunction;
         options.Conventions.Routines.Prefix = "sf_";
         options.Conventions.Routines.Casing = CaseConvention.LowerSnakeCase;
-        
+    
         options.Conventions.Parameters.Prefix = "p_";
         options.Conventions.Parameters.FormatPlaceholder = (_, routineType, parameterName, _) =>
         {
@@ -116,7 +124,14 @@ builder.Services
     .Using<IUserRepository, UserRepository>(options =>
     {
         options.Schema = "auth";
-    });
+    })
+    .WithColumnMapping(
+        CaseConvention.LowerSnakeCase, // Database column names in lower_snake_case
+        t => typeof(IEntity).IsAssignableFrom(t), // Apply this column mapping to entities implementing the fictitious IEntity interface
+        Assembly.GetExecutingAssembly() // Scan types from the executing assembly
+    )
+    .WithTypeHandler(new DbDateOnlyTypeHandler()) // The fictitious DbDateOnlyTypeHandler must inherit from DbTypeHandler
+    ;
 ```
 
 ## Unit Of Work
@@ -124,6 +139,7 @@ builder.Services
 The class **DbUnitOfWork** implements the interface **IUnitOfWork** to create **IDbTransaction** objects from a given **IDbConnection**.
 
 For example, to create an invoice, we may need to create two kinds of entities:
+
 * Invoice
   * InvoiceId
   * CustomerId
@@ -153,14 +169,14 @@ public class SalesUnitOfWork : DbUnitOfWork, ISalesUnitOfWork
 {
     private readonly IInvoiceRepository? _invoiceRepository;
     private readonly IInvoiceItemRepository? _invoiceItemRepository;
-    
+  
     public SalesUnitOfWork(IDbConnection connection) : base(connection)
     {
     }
-    
+  
     public IInvoiceRepository InvoiceRepository
         => _invoiceRepository ??= new InvoiceRepository(Transaction);
-    
+  
     public IInvoiceItemRepository InvoiceItemRepository
         => _invoiceItemRepository ??= new InvoiceItemRepository(Transaction);
 }
@@ -170,12 +186,12 @@ public class SalesUnitOfWork : DbUnitOfWork, ISalesUnitOfWork
 public class CreateInvoiceCommandHandler
 {
     private readonly IUnitOfWorkFactory _unitOfWorkFactory;
-    
+  
     public CreateInvoiceCommandHandler(IUnitOfWorkFactory unitOfWorkFactory)
     {
         _unitOfWorkFactory = unitOfWorkFactory;
     }
-    
+  
     public async Task<CreateInvoiceCommandResult> HandleAsync(CreateInvoiceCommand command, CancellationToken cancellationToken)
     {
         // Begin operation
@@ -184,23 +200,23 @@ public class CreateInvoiceCommandHandler
 
         var invoice = new Invoice();
         // Populate invoice object from properties of command object 
-        
+      
         // Create the Invoice entity
         var invoiceId = await unitOfWork.InvoiceRepository.CreateAsync(invoice, cancellationToken);
-        
+      
         // Create all the InvoiceItem entities
         foreach (var item in command.Items)
         {
             var invoiceItem = new InvoiceItem();
             // Populate invoiceItem object from properties of item object
-            
+          
             // Create each InvoiceItem entity
             await unitOfWork.InvoiceItemRepository.CreateAsync(invoiceItem, cancellationToken); 
         }
 
-        // Commit the current operation        
+        // Commit the current operation      
         await unitOfWork.SaveAsync(cancellationToken);
-        
+      
         // Return the result of the operation
         return new CreateInvoiceCommandResult
         {

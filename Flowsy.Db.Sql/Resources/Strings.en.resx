@@ -15,9 +15,15 @@
         <value>No connection configuration was provided.</value>
     </data>
     <data name="InvalidConnectionKey" xml:space="preserve">
-        <value>Invalid connection key: %s.</value>
+        <value>Invalid connection key: {0}.</value>
     </data>
     <data name="CouldNotGetConnection" xml:space="preserve">
         <value>Could not get a database connection.</value>
+    </data>
+    <data name="CouldNotSetValueXForParameterX" xml:space="preserve">
+        <value>Could not set value '{0}' for parameter {1}.</value>
+    </data>
+    <data name="CouldNotParseValueX" xml:space="preserve">
+        <value>Could not parse value: {0}</value>
     </data>
 </root>

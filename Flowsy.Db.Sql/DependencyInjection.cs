@@ -14,6 +14,11 @@ public static class DependencyInjection
         return services;
     }
     
+    /// <summary>
+    /// Registers a database connection factory.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    /// <param name="implementationFactory">The factory that creates the service.</param>
     public static IServiceCollection AddDbConnectionFactory(
         this IServiceCollection services,
         Func<IServiceProvider, IDbConnectionFactory> implementationFactory
@@ -23,13 +28,18 @@ public static class DependencyInjection
         return services;
     }
 
+    /// <summary>
+    /// Registers and configures repository services.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    /// <param name="configureDefaults">Action to configure default options for all repository types.</param>
     public static DbRepositoryBuilder AddRepositories(
         this IServiceCollection services,
         Action<DbRepositoryOptions> configureDefaults
         )
     {
         var defaults = new DbRepositoryOptions();
-        configureDefaults?.Invoke(defaults);
+        configureDefaults(defaults);
         return new DbRepositoryBuilder(services, defaults);
     }
 }
