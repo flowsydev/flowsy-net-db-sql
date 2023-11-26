@@ -16,7 +16,7 @@ public static class ConfigurationExtensions
         string? sectionName = null
         )
     {
-        var section = sectionName is not null ? configuration.GetSection(sectionName) : configuration;
+        var section = !string.IsNullOrEmpty(sectionName) ? configuration.GetSection(sectionName) : configuration;
         return section
             .GetChildren()
             .Where(c => c["ProviderInvariantName"] is not null && c["ConnectionString"] is not null)
