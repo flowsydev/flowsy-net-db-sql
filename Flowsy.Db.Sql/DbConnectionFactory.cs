@@ -48,4 +48,9 @@ public class DbConnectionFactory : IDbConnectionFactory
         
         return connection;
     }
+
+    /// <summary>
+    /// A list of DbConnectionConfiguration objects used to create database connections.
+    /// </summary>
+    public IEnumerable<DbConnectionConfiguration> Configurations => _connectionConfigurations.Values;
 }

@@ -8,6 +8,7 @@ oriented to SQL databases.
 The class **DbConnectionFactory** implements the interface **IDbConnectionFactory** to
 create **IDbConnection** objects from a list of registered configurations identified by unique keys.
 
+
 ## Repositories
 
 The class DbRepository offers the foundation to implement the repository pattern.
@@ -44,9 +45,8 @@ public class UserRepository : DbRepository, IUserRepository
 
     public Task<User?> GetByIdAsync(Guid userId, CancellationToken cancellationToken)
     {
-        // Invoke a stored routine: user_get_by_id(uuid)
         return GetSingleOrDefaultAsync<User>(
-            "user_get_by_id",
+            "UserGetById", // stored function sf_user_get_by_id(uuid) (see configuration below)
             new
             {
                 UserId = userId
@@ -57,9 +57,8 @@ public class UserRepository : DbRepository, IUserRepository
   
     public Task<User?> GetByEmailAsync(string email, CancellationToken cancellationToken)
     {
-        // Invoke a stored routine: user_get_by_email(varchar)
         return GetSingleOrDefaultAsync<User>(
-            "user_get_by_email",
+            "UserGetByEmail", // stored function sf_user_get_by_email(varchar) (see configuration below)
             new
             {
                 Email = email
@@ -72,25 +71,51 @@ public class UserRepository : DbRepository, IUserRepository
 
 By inheriting from DbRepository we can reuse its methods to execute SQL statements and routines without writing many lines of boilerplate code.
 
-### Repositories & Dependency Injection
+## Dependency Injection
+
+### Recommended Configuration
+The following code snippet shows a recommended configuration for database connections:
+```json5
+{
+  // ...
+  "Database": { // Root for all database connections
+    "Database1": { // Key to identify this connection
+      "ProviderInvariantName": "Npgsql",
+      "ConnectionString": "Server=pg.example.com;Port=5432;Database=db1;User Id=user1;Password=sup3rS3cr3t;Include Error Detail=True;",
+      "Migration": { // Optional section to configure database migrations
+        "SourceDirectory": "Some/Path/To/Migrations/Database1", // Path with migration scripts for 'Database1'
+        "MetadataSchema": "public", // Schema containing the table for migration metadata
+        "MetadataTable": "migration", // Table for migration metadata
+        "InitializationStatement": "call public.populate_tables();" // Optional statement to execute after running migrations
+      }
+    },
+    "Database2": { // Key to identify this connection
+      "ProviderInvariantName": "MySql.Data.MySqlClient",
+      "ConnectionString": "Server=mysql.example.com;Port=3306;Database=db2;User Id=user2;Password=m3gaS3cr3t;",
+      "Migration": { // Optional section to configure database migrations
+        "SourceDirectory": "Some/Path/To/Migrations/Database2", // Path with migration scripts for 'Database2'
+        "MetadataTable": "migration", // Table for migration metadata
+        "InitializationStatement": "call populate_tables();" // Optional statement to execute after running migrations
+      }
+    }
+  },
+  // ...
+}
+```
+
+### Register Services
+The previous configuration will allow us to use the GetConnectionConfigurations extension method
+for IConfiguration to configure our DbConnectionFactory instance.
 
 ```csharp
-
 var builder = WebApplication.CreateBuilder(args);
 
 // Register a DbConnectionFactory service with the required configurations taken from the application settings
 builder.Services.AddDbConnectionFactory(serviceProvider =>
     {
       var configuration = serviceProvider.GetRequiredService<IConfiguration>();
-      var sqlConfiguration = configuration.GetRequiredSection("Databases");
-      var dbConnectionConfigurations = 
-          sqlConfiguration.GetChildren().Select(databaseConfiguration => new DbConnectionConfiguration
-          {
-              Key = databaseConfiguration.Key,
-              ProviderInvariantName = databaseConfiguration["ProviderInvariantName"],
-              ConnectionString = databaseConfiguration["ConnectionString"]
-          });
-  
+      var connectionConfigurations = configuration.GetConnectionConfigurations("Database");
+      
       return new DbConnectionFactory(dbConnectionConfigurations.ToArray());
     });
 
@@ -133,7 +158,47 @@ builder.Services
     )
     .WithTypeHandler(new DbDateOnlyTypeHandler()) // The fictitious DbDateOnlyTypeHandler must inherit from DbTypeHandler
     ;
+
+// Configure more services and run the application...
 ```
+
+## Database Migrations
+Optionally, you can use the DbManager class to run database migrations.
+
+```csharp
+var builder = WebApplication.CreateBuilder(args);
+
+// Configure the IDbConnectionFactory instance and other services...
+
+builder.Services.AddSingleton<DbManager>();
+
+// Configure more services and run the application...
+```
+
+```csharp
+public class SomeService
+{
+    private readonly DbManager _dbManager;
+    
+    public SomeService(DbManager dbManager)
+    {
+        // The dependency injection system will configure the DbManager instance using the previously registered IDbConnectionFactory object.
+        _dbManager = dbManager;
+    }
+    
+    public async Task RunMigrationsAsync(CancellationToken cancellationToken)
+    {
+        var results = await _dbManager.MigrateAsync(cancellationToken);
+        // Do something with results
+    }
+}
+```
+
+Under the hood, this package uses the popular tool named [Evolve](https://www.nuget.org/packages/Evolve), so you should
+follow the specifications from [Evolve Concepts](https://evolve-db.netlify.app/concepts/) to create your migration files.
+
+If you decide to take another approach or use another tool, you will need to take care of all the details to manage your database objects.
+
 
 ## Unit Of Work
 
