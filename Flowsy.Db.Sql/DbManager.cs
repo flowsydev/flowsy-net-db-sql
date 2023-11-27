@@ -8,15 +8,61 @@ namespace Flowsy.Db.Sql;
 
 public sealed class DbManager
 {
-    private readonly IDbConnectionFactory _dbConnectionFactory;
+    private readonly IDbConnectionFactory? _dbConnectionFactory;
+    private readonly IEnumerable<DbConnectionConfiguration>? _connectionConfigurations;
     private readonly ILogger<DbManager>? _logger;
+    private readonly Action<string>? _logAction;
     
-
-    public DbManager(IDbConnectionFactory dbConnectionFactory, ILogger<DbManager>? logger = null)
+    public DbManager(IDbConnectionFactory dbConnectionFactory, ILogger<DbManager>? logger)
     {
         _dbConnectionFactory = dbConnectionFactory;
         _logger = logger;
     }
+    
+    public DbManager(IDbConnectionFactory dbConnectionFactory, Action<string>? logAction)
+    {
+        _dbConnectionFactory = dbConnectionFactory;
+        _logAction = logAction;
+    }
+
+    public DbManager(IEnumerable<DbConnectionConfiguration>? connectionConfigurations, ILogger<DbManager>? logger)
+    {
+        _connectionConfigurations = connectionConfigurations;
+        _logger = logger;
+    }
+
+    public DbManager(IEnumerable<DbConnectionConfiguration>? connectionConfigurations, Action<string>? logAction)
+    {
+        _connectionConfigurations = connectionConfigurations;
+        _logAction = logAction;
+    }
+
+    private void LogInformation(string message, params object?[] arguments)
+    {
+        if (_logger is not null)
+            _logger.LogInformation(message, arguments);
+        else if (_logAction is not null)
+        {
+            var finalMessage = string.Format(message, arguments);
+            _logAction.Invoke(finalMessage);
+        }
+    }
+
+    private void LogError(Exception exception, string message, params object?[] arguments)
+    {
+        if (_logger is not null)
+            _logger.LogError(exception, message, arguments);
+        else if (_logAction is not null)
+        {
+            var finalMessage = string.Format(message, arguments);
+            _logAction.Invoke($"{finalMessage}{Environment.NewLine}{exception}");
+        }
+    }
+
+    private IEnumerable<DbConnectionConfiguration> GetConnectionConfigurations()
+        => _dbConnectionFactory?.Configurations ??
+           _connectionConfigurations ??
+           throw new InvalidOperationException("A connection factory or a connection configuration list was expected."); 
 
     /// <summary>
     /// Runs database migrations for all the connections associated with the underlying IDbConnectionFactory instance.
@@ -35,13 +81,12 @@ public sealed class DbManager
         => Task.Run<IEnumerable<DbMigrationResult>>(() =>
         {
             var keys = connectionKeys.ToArray();
-            var configurations = _dbConnectionFactory
-                .Configurations
+            var configurations = GetConnectionConfigurations()
                 .Where(c => !keys.Any() || keys.Contains(c.Key))
                 .ToArray();
 
             if (!configurations.Any())
-                throw new InvalidOperationException("No database configuration was found.");
+                throw new InvalidOperationException("No connection configuration was found.");
             
             var results = new List<DbMigrationResult>();
             
@@ -51,28 +96,26 @@ public sealed class DbManager
                 {
                     if (configuration.Migration is null)
                     {
-                        _logger?.LogError(
-                            "No migration configuration was provided for connection with key {ConnectionKey}",
-                            configuration.Key
-                        );
-                        continue;
+                        throw new InvalidOperationException(
+                            $"No migration configuration was provided for connection with key {configuration.Key}"
+                            );
                     }
 
-                    using var connection = _dbConnectionFactory.GetConnection(configuration.Key);
-                    if (connection is not DbConnection dbConnection)
+                    var factory = DbProviderFactories.GetFactory(configuration.ProviderInvariantName);
+                    using var connection = factory.CreateConnection();
+                    if (connection is null)
                     {
-                        _logger?.LogError(
-                            "Connection with key {ConnectionKey} is not of type DbConnection",
-                            configuration.Key
-                        );
-                        continue;
+                        throw new InvalidOperationException(
+                            $"Could not create a database connection for configuration with key {configuration.Key}"
+                            );
                     }
 
+                    connection.ConnectionString = configuration.ConnectionString;
                     connection.Open();
 
                     var evolve = new Evolve(
-                        dbConnection,
-                        message => _logger?.LogInformation("Database migration: {Message}", message)
+                        connection,
+                        message => LogInformation("Database migration: {Message}", message)
                     )
                     {
                         Locations = new[]
@@ -97,7 +140,7 @@ public sealed class DbManager
                 }
                 catch (Exception exception)
                 {
-                    _logger?.LogError(exception, "Database migration failed for connection with key {ConnectionKey}", configuration.Key);
+                    LogError(exception, "Database migration failed for connection with key {ConnectionKey}", configuration.Key);
                     results.Add(new DbMigrationResult(configuration, exception));
                 }
             }
