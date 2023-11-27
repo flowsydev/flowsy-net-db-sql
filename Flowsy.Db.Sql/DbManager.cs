@@ -37,26 +37,20 @@ public sealed class DbManager
         _logAction = logAction;
     }
 
-    private void LogInformation(string message, params object?[] arguments)
+    private void LogInformation(string message)
     {
         if (_logger is not null)
-            _logger.LogInformation(message, arguments);
+            _logger.LogInformation(message);
         else if (_logAction is not null)
-        {
-            var finalMessage = string.Format(message, arguments);
-            _logAction.Invoke(finalMessage);
-        }
+            _logAction.Invoke(message);
     }
 
-    private void LogError(Exception exception, string message, params object?[] arguments)
+    private void LogError(Exception exception, string message)
     {
         if (_logger is not null)
-            _logger.LogError(exception, message, arguments);
+            _logger.LogError(exception, message);
         else if (_logAction is not null)
-        {
-            var finalMessage = string.Format(message, arguments);
-            _logAction.Invoke($"{finalMessage}{Environment.NewLine}{exception}");
-        }
+            _logAction.Invoke($"{message}{Environment.NewLine}{exception}");
     }
 
     private IEnumerable<DbConnectionConfiguration> GetConnectionConfigurations()
@@ -113,10 +107,7 @@ public sealed class DbManager
                     connection.ConnectionString = configuration.ConnectionString;
                     connection.Open();
 
-                    var evolve = new Evolve(
-                        connection,
-                        message => LogInformation("Database migration: {Message}", message)
-                    )
+                    var evolve = new Evolve(connection, LogInformation)
                     {
                         Locations = new[]
                         {
@@ -140,7 +131,7 @@ public sealed class DbManager
                 }
                 catch (Exception exception)
                 {
-                    LogError(exception, "Database migration failed for connection with key {ConnectionKey}", configuration.Key);
+                    LogError(exception, $"Database migration failed for connection with key {configuration.Key}");
                     results.Add(new DbMigrationResult(configuration, exception));
                 }
             }
