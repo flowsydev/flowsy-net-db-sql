@@ -1,6 +1,7 @@
 using System.Reflection;
 using Dapper;
 using Flowsy.Core;
+using Flowsy.Db.Sql.Convertions;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Flowsy.Db.Sql;
@@ -76,6 +77,22 @@ public class DbRepositoryBuilder
             );
 
     /// <summary>
+    /// Configures column mappings for query results based on a case convention.
+    /// </summary>
+    /// <param name="columnCaseConvention">The case convention to use.</param>
+    /// <param name="types">The types to map.</param>
+    public DbRepositoryBuilder WithColumnMapping(CaseConvention columnCaseConvention, params Type[] types)
+    {
+        foreach (var type in types)
+        {
+            SqlMapper.RemoveTypeMap(type);
+            SqlMapper.SetTypeMap(type, new DbCaseConventionTypeMap(type, columnCaseConvention));
+        }
+
+        return this;
+    }
+    
+    /// <summary>
     /// Configures column mappings for query results based on a property selector.
     /// </summary>
     /// <param name="typeSelector">Type selector based on the target type taken from the provided assemblies.</param>
@@ -91,20 +108,6 @@ public class DbRepositoryBuilder
             assemblies
                 .SelectMany(a => a.GetTypes().Where(typeSelector))
                 .ToArray()
-            );
-
-    /// <summary>
-    /// Configures column mappings for query results based on a case convention.
-    /// </summary>
-    /// <param name="columnCaseConvention">The case convention to use.</param>
-    /// <param name="types">The types to map.</param>
-    public DbRepositoryBuilder WithColumnMapping(CaseConvention columnCaseConvention, params Type[] types)
-        => WithColumnMapping(
-            (entityType, columnName) => 
-                entityType
-                    .GetRuntimeProperties()
-                    .FirstOrDefault(p => p.Name.ApplyConvention(columnCaseConvention) == columnName),
-            types
             );
     
     /// <summary>

@@ -1,7 +1,7 @@
 using System.Data;
 using Dapper;
 
-namespace Flowsy.Db.Sql;
+namespace Flowsy.Db.Sql.Convertions;
 
 public abstract class DbTypeHandler<T> : SqlMapper.TypeHandler<T>
 {
