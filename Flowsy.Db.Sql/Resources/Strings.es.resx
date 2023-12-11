@@ -26,4 +26,7 @@
     <data name="CouldNotParseValueX" xml:space="preserve">
         <value>No se pudo procesar el valor: {0}</value>
     </data>
+    <data name="InitializationStatementExecuted" xml:space="preserve">
+        <value>Comando de inicialización ejecutado</value>
+    </data>
 </root>

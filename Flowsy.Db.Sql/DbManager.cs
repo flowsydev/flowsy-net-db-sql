@@ -2,6 +2,7 @@ using System.Data;
 using System.Data.Common;
 using EvolveDb;
 using Flowsy.Db.Abstractions;
+using Flowsy.Db.Sql.Resources;
 using Microsoft.Extensions.Logging;
 
 namespace Flowsy.Db.Sql;
@@ -125,6 +126,8 @@ public sealed class DbManager
                         command.CommandType = CommandType.Text;
                         command.CommandText = configuration.Migration.InitializationStatement;
                         command.ExecuteNonQuery();
+                        
+                        LogInformation($"{Strings.InitializationStatementExecuted}: {configuration.Migration.InitializationStatement}");
                     }
                     
                     results.Add(new DbMigrationResult(configuration));

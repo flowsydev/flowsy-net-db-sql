@@ -74,5 +74,11 @@ namespace Flowsy.Db.Sql.Resources {
                 return ResourceManager.GetString("CouldNotParseValueX", resourceCulture);
             }
         }
+        
+        internal static string InitializationStatementExecuted {
+            get {
+                return ResourceManager.GetString("InitializationStatementExecuted", resourceCulture);
+            }
+        }
     }
 }
