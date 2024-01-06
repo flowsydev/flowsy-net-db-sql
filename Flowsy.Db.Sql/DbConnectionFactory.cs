@@ -32,7 +32,7 @@ public class DbConnectionFactory : IDbConnectionFactory
     /// </summary>
     /// <param name="key">The connection identifier. If omitted, the first DbConnectionConfiguration in the list will be used.</param>
     /// <returns>A database connection</returns>
-    public IDbConnection GetConnection(string? key = null)
+    public virtual IDbConnection GetConnection(string? key = null)
     {
         var k = key ?? _connectionConfigurations.Keys.First();
         if (!_connectionConfigurations.ContainsKey(k))
