@@ -126,6 +126,47 @@ public abstract partial class DbRepository
     }
 
     /// <summary>
+    /// Executes a SQL statement and returns the first result or a default value if no results were found.
+    /// </summary>
+    /// <param name="routineSimpleName">The routine simple name (UserCreate, UserPatchEmail, UserDelete, etc.)</param>
+    /// <param name="param">The statement parameters.</param>
+    /// <param name="cancellationToken">The cancellation token for the operation.</param>
+    /// <typeparam name="T">The type of the expected result.</typeparam>
+    /// <returns>The first element of the query results. An exception is thrown if no results are found.</returns>
+    protected virtual Task<T?> GetFirstOrDefaultAsync<T>(
+        string routineSimpleName,
+        dynamic param,
+        CancellationToken cancellationToken
+        )
+        => GetFirstOrDefaultAsync<T>(routineSimpleName, ResolveRoutineType(), (object) param, cancellationToken);
+
+    /// <summary>
+    /// Executes a SQL statement and returns the first result.
+    /// </summary>
+    /// <param name="routineSimpleName">The routine simple name (UserCreate, UserPatchEmail, UserDelete, etc.)</param>
+    /// <param name="routineType">The type of routine.</param>
+    /// <param name="param">The statement parameters.</param>
+    /// <param name="cancellationToken">The cancellation token for the operation.</param>
+    /// <typeparam name="T">The type of the expected result.</typeparam>
+    /// <returns>The first element of the query results or a default value if no results are found.</returns>
+    protected virtual Task<T?> GetFirstOrDefaultAsync<T>(
+        string routineSimpleName,
+        DbRoutineType? routineType,
+        dynamic param,
+        CancellationToken cancellationToken
+        )
+    {
+        var dynamicParameters = ToDynamicParameters((object) param);
+        return GetFirstOrDefaultAsync<T>(new CommandDefinition(
+            ResolveRoutineStatement(routineSimpleName, dynamicParameters, routineType),
+            dynamicParameters,
+            Transaction,
+            commandType: ResolveRoutineCommandType(routineType),
+            cancellationToken: cancellationToken
+            ));
+    }
+
+    /// <summary>
     /// Executes a SQL statement and returns a single result.
     /// </summary>
     /// <param name="routineSimpleName">The routine simple name (UserCreate, UserPatchEmail, UserDelete, etc.)</param>
