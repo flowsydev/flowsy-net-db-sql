@@ -43,7 +43,7 @@ public abstract partial class DbRepository
     /// <returns>The final SQL statement for the routine.</returns>
     protected virtual string ResolveRoutineStatement(
         string routineSimpleName, 
-        DynamicParameters parameters,
+        DynamicParameters? parameters,
         DbRoutineType? routineType = null
         )
     {
@@ -52,18 +52,22 @@ public abstract partial class DbRepository
         
         if (finalRoutineType != DbRoutineType.StoredFunction)
             return routineName;
-        
-        var parameterNames = string.Join(
-            ", ",
-            parameters.ParameterNames.Select(
-                parameterName => ResolveRoutineParameterPlaceholder(
-                    routineName,
-                    finalRoutineType,
-                    parameterName,
-                    parameters.Get<object?>(parameterName)
+
+        var parameterNames = string.Empty;
+        if (parameters is not null)
+        {
+            parameterNames = string.Join(
+                ", ",
+                parameters.ParameterNames.Select(
+                    parameterName => ResolveRoutineParameterPlaceholder(
+                        routineName,
+                        finalRoutineType,
+                        parameterName,
+                        parameters.Get<object?>(parameterName)
+                    )
                 )
-            )
-            );
+                );
+        }
         return $"select * from {routineName}({parameterNames})";
     }
 

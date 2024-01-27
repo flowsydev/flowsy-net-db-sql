@@ -163,28 +163,94 @@ public abstract partial class DbRepository
     #endregion
 
     #region Database Action
+
     /// <summary>
     /// Executes an action on a database connection resolved from the properties of this respository.
     /// </summary>
+    /// <param name="connection">The database connection.</param>
     /// <param name="action">The action to execute.</param>
     /// <typeparam name="T">The type of the expected result.</typeparam>
     /// <returns>The result of the action.</returns>
-    protected virtual async Task<T> ExecuteDatabaseActionAsync<T>(Func<IDbConnection, Task<T>> action)
+    protected virtual async Task<T> ExecuteAsync<T>(IDbConnection connection, Func<IDbConnection, Task<T>> action)
     {
-        var connection = GetConnection();
         try
         {
+            if (connection.State == ConnectionState.Closed)
+                connection.Open();
+            
             return await action(connection);
         }
         catch (Exception exception)
         {
-            if (ExceptionHandler is null) throw;
+            if (ExceptionHandler is null)
+                throw;
             
             var newException = ExceptionHandler?.Handle(exception);
             if (newException is not null)
                 throw newException;
 
             throw;
+        }
+    }
+    
+    /// <summary>
+    /// Executes an action on a database connection resolved from the properties of this respository.
+    /// </summary>
+    /// <param name="action">The action to execute.</param>
+    /// <typeparam name="T">The type of the expected result.</typeparam>
+    /// <returns>The result of the action.</returns>
+    protected virtual async Task<T> ExecuteAsync<T>(Func<IDbConnection, Task<T>> action)
+    {
+        var connection = GetConnection();
+        try
+        {
+            return await ExecuteAsync(connection, action);
+        }
+        finally
+        {
+            await TryDisposeConnectionAsync(connection);
+        }
+    }
+
+    /// <summary>
+    /// Executes an action on a database connection resolved from the properties of this respository.
+    /// </summary>
+    /// <param name="connection">The database connection.</param>
+    /// <param name="action">The action to execute.</param>
+    /// <returns>The result of the action.</returns>
+    protected virtual async Task ExecuteAsync(IDbConnection connection, Func<IDbConnection, Task> action)
+    {
+        try
+        {
+            if (connection.State == ConnectionState.Closed)
+                connection.Open();
+            
+            await action(connection);
+        }
+        catch (Exception exception)
+        {
+            if (ExceptionHandler is null)
+                throw;
+            
+            var newException = ExceptionHandler?.Handle(exception);
+            if (newException is not null)
+                throw newException;
+
+            throw;
+        }
+    }
+    
+    /// <summary>
+    /// Executes an action on a database connection resolved from the properties of this respository.
+    /// </summary>
+    /// <param name="action">The action to execute.</param>
+    /// <returns>The result of the action.</returns>
+    protected virtual async Task ExecuteAsync(Func<IDbConnection, Task> action)
+    {
+        var connection = GetConnection();
+        try
+        {
+            await ExecuteAsync(connection, action);
         }
         finally
         {
