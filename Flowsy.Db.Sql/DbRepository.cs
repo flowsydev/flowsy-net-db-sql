@@ -165,20 +165,20 @@ public abstract partial class DbRepository
     #region Database Action
 
     /// <summary>
-    /// Executes an action on a database connection resolved from the properties of this respository.
+    /// Executes a query using the provided database connection.
     /// </summary>
     /// <param name="connection">The database connection.</param>
-    /// <param name="action">The action to execute.</param>
+    /// <param name="query">A delegate encapsulating a query to execute using the given connection.</param>
     /// <typeparam name="T">The type of the expected result.</typeparam>
-    /// <returns>The result of the action.</returns>
-    protected virtual async Task<T> ExecuteAsync<T>(IDbConnection connection, Func<IDbConnection, Task<T>> action)
+    /// <returns>The result of the query.</returns>
+    protected virtual async Task<T> QueryAsync<T>(IDbConnection connection, Func<IDbConnection, Task<T>> query)
     {
         try
         {
             if (connection.State == ConnectionState.Closed)
                 connection.Open();
             
-            return await action(connection);
+            return await query(connection);
         }
         catch (Exception exception)
         {
@@ -194,17 +194,17 @@ public abstract partial class DbRepository
     }
     
     /// <summary>
-    /// Executes an action on a database connection resolved from the properties of this respository.
+    /// Executes a query using a database connection resolved from the properties of this respository.
     /// </summary>
-    /// <param name="action">The action to execute.</param>
+    /// <param name="query">A delegate encapsulating a query to execute.</param>
     /// <typeparam name="T">The type of the expected result.</typeparam>
-    /// <returns>The result of the action.</returns>
-    protected virtual async Task<T> ExecuteAsync<T>(Func<IDbConnection, Task<T>> action)
+    /// <returns>The result of the query.</returns>
+    protected virtual async Task<T> QueryAsync<T>(Func<IDbConnection, Task<T>> query)
     {
         var connection = GetConnection();
         try
         {
-            return await ExecuteAsync(connection, action);
+            return await QueryAsync(connection, query);
         }
         finally
         {
@@ -213,19 +213,18 @@ public abstract partial class DbRepository
     }
 
     /// <summary>
-    /// Executes an action on a database connection resolved from the properties of this respository.
+    /// Executes a query using the provided database connection.
     /// </summary>
     /// <param name="connection">The database connection.</param>
-    /// <param name="action">The action to execute.</param>
-    /// <returns>The result of the action.</returns>
-    protected virtual async Task ExecuteAsync(IDbConnection connection, Func<IDbConnection, Task> action)
+    /// <param name="query">A delegate encapsulating a query to execute using the given connection.</param>
+    protected virtual async Task ExecuteAsync(IDbConnection connection, Func<IDbConnection, Task> query)
     {
         try
         {
             if (connection.State == ConnectionState.Closed)
                 connection.Open();
             
-            await action(connection);
+            await query(connection);
         }
         catch (Exception exception)
         {
@@ -241,16 +240,15 @@ public abstract partial class DbRepository
     }
     
     /// <summary>
-    /// Executes an action on a database connection resolved from the properties of this respository.
+    /// Executes a query using a database connection resolved from the properties of this respository.
     /// </summary>
-    /// <param name="action">The action to execute.</param>
-    /// <returns>The result of the action.</returns>
-    protected virtual async Task ExecuteAsync(Func<IDbConnection, Task> action)
+    /// <param name="query">A delegate encapsulating a query to execute using the given connection.</param>
+    protected virtual async Task ExecuteAsync(Func<IDbConnection, Task> query)
     {
         var connection = GetConnection();
         try
         {
-            await ExecuteAsync(connection, action);
+            await ExecuteAsync(connection, query);
         }
         finally
         {

@@ -15,7 +15,7 @@
         <RepositoryType>git</RepositoryType>
         <RepositoryUrl>https://github.com/flowsydev/flowsy-net-db-sql</RepositoryUrl>
 
-        <PackageVersion>1.3.0</PackageVersion>
+        <PackageVersion>2.0.0</PackageVersion>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
         <PackageReadmeFile>README.md</PackageReadmeFile>
 
