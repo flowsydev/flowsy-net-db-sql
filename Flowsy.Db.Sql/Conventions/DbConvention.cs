@@ -37,12 +37,12 @@ public abstract class DbConvention
         if (!string.IsNullOrEmpty(Prefix))
             builder.Append(Prefix);
 
-        builder.Append(simpleName);
+        builder.Append(simpleName.ApplyConvention(Casing));
         
         if (!string.IsNullOrEmpty(Suffix))
             builder.Append(Suffix);
 
-        return builder.ToString().ApplyConvention(Casing);
+        return builder.ToString();
     }
 
     public abstract DbConvention Clone();
