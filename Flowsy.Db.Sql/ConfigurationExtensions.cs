@@ -28,7 +28,7 @@ public static class ConfigurationExtensions
                 var metadataTableName = migrationSection["MetadataTableName"];
                 var initializationStatement = migrationSection["InitializationStatement"];
                 
-                var migration = sourceDirectory is not null && metadataTableSchema is not null && metadataTableName is not null
+                var migration = sourceDirectory is not null && metadataTableName is not null
                     ? new DbMigrationConfiguration(sourceDirectory, metadataTableSchema, metadataTableName, initializationStatement)
                     : null;
 

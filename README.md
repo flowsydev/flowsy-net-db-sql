@@ -110,7 +110,6 @@ The following code snippet shows a recommended configuration for database connec
       "ConnectionString": "Server=mysql.example.com;Port=3306;Database=db2;User Id=user2;Password=m3gaS3cr3t;",
       "Migration": { // Optional section to configure database migrations
         "SourceDirectory": "Some/Path/To/Migrations/Database2", // Path with migration scripts for 'Database2'
-        "MetadataTableSchema": "migration", // Schema containing the table for migration metadata
         "MetadataTableName": "changelog", // Table for migration metadata
         "InitializationStatement": "call populate_tables();" // Optional statement to execute after running migrations
       }

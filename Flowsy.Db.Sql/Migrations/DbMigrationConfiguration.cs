@@ -6,11 +6,11 @@ namespace Flowsy.Db.Sql.Migrations;
 public sealed class DbMigrationConfiguration
 {
     public DbMigrationConfiguration()
-        : this(string.Empty, string.Empty, string.Empty, null)
+        : this(string.Empty, null, string.Empty, null)
     {
     }
 
-    public DbMigrationConfiguration(string sourceDirectory, string metadataTableSchema, string metadataTableName, string? initializationStatement)
+    public DbMigrationConfiguration(string sourceDirectory, string? metadataTableSchema, string metadataTableName, string? initializationStatement)
     {
         SourceDirectory = sourceDirectory;
         MetadataTableSchema = metadataTableSchema;
@@ -26,7 +26,7 @@ public sealed class DbMigrationConfiguration
     /// <summary>
     /// The database schema containing the table to store migration metadata. 
     /// </summary>
-    public string MetadataTableSchema { get; set; }
+    public string? MetadataTableSchema { get; set; }
     
     /// <summary>
     /// The name of the table to store migration metadata.

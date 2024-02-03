@@ -114,7 +114,7 @@ public sealed class DbManager
                         {
                             configuration.Migration.SourceDirectory
                         },
-                        MetadataTableSchema = configuration.Migration.MetadataTableSchema,
+                        MetadataTableSchema = configuration.Migration.MetadataTableSchema ?? string.Empty,
                         MetadataTableName = configuration.Migration.MetadataTableName
                     };
 
