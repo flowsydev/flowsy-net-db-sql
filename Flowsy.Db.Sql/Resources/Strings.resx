@@ -36,4 +36,19 @@
     <data name="InitializationStatementExecuted" xml:space="preserve">
         <value>Initialization statement executed</value>
     </data>
+    <data name="ConnectionFactoryOrConfigurationListWasExpected" xml:space="preserve">
+        <value>A connection factory or a connection configuration list was expected.</value>
+    </data>
+    <data name="NoMigrationConfigurationProvidedForConnectionWithKey" xml:space="preserve">
+        <value>No migration configuration was provided for connection with key</value>
+    </data>
+    <data name="CouldNotCreateDatabaseConnectionForConfigurationWithKey" xml:space="preserve">
+        <value>Could not create a database connection for configuration with key</value>
+    </data>
+    <data name="DatabaseMigrationFailedForConnectionWithKey" xml:space="preserve">
+        <value>Database migration failed for connection with key</value>
+    </data>
+    <data name="MustBeginWorkByInvokingMethodX" xml:space="preserve">
+        <value>Must begin work by explicitly invoking the method {0}.</value>
+    </data>
 </root>

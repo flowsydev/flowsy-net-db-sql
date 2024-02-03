@@ -86,7 +86,7 @@ public class DbRepositoryBuilder
         foreach (var type in types)
         {
             SqlMapper.RemoveTypeMap(type);
-            SqlMapper.SetTypeMap(type, new DbCaseConventionTypeMap(type, columnCaseConvention));
+            SqlMapper.SetTypeMap(type, new CaseConventionTypeMap(type, columnCaseConvention));
         }
 
         return this;

@@ -3,6 +3,7 @@ using System.Data.Common;
 using Dapper;
 using Flowsy.Core;
 using Flowsy.Db.Abstractions;
+using Flowsy.Db.Sql.Resources;
 
 namespace Flowsy.Db.Sql;
 
@@ -11,41 +12,92 @@ namespace Flowsy.Db.Sql;
 /// </summary>
 public abstract partial class DbRepository
 {
-    protected DbRepository(
-        IDbConnectionFactory connectionFactory,
-        DbExceptionHandler? exceptionHandler = null
-        )
+    private readonly DbConnectionFactory? _connectionFactory;
+    private readonly DbUnitOfWork? _unitOfWork;
+    private IDbConnection? _connection;
+    private bool _disposed;
+    
+    protected DbRepository(DbConnectionFactory connectionFactory, DbExceptionHandler? exceptionHandler = null)
     {
-        ConnectionFactory = connectionFactory;
+        _connectionFactory = connectionFactory;
         ExceptionHandler = exceptionHandler;
     }
     
-    protected DbRepository(IDbConnection connection, DbExceptionHandler? exceptionHandler = null)
+    protected DbRepository(DbUnitOfWork unitOfWork, DbExceptionHandler? exceptionHandler = null)
     {
-        Connection = connection;
+        _unitOfWork = unitOfWork;
         ExceptionHandler = exceptionHandler;
     }
     
-    protected DbRepository(IDbTransaction transaction, DbExceptionHandler? exceptionHandler = null)
+    ~DbRepository()
     {
-        Transaction = transaction;
-        ExceptionHandler = exceptionHandler;
+        Dispose(false);
+    }
+    
+    public void Dispose()
+    {
+        Dispose(true);
+        GC.SuppressFinalize(this);
     }
 
-    /// <summary>
-    /// A factory to get database connections from.
-    /// </summary>
-    protected IDbConnectionFactory? ConnectionFactory { get; }
+    public async ValueTask DisposeAsync()
+    {
+        await DisposeAsync(true);
+        GC.SuppressFinalize(this);
+    }
+
+    protected virtual void Dispose(bool disposing)
+    {
+        if (_disposed) return;
+
+        if (disposing)
+        {
+            _connection?.Dispose();
+        }
+
+        _disposed = true;
+    }
+    
+    protected virtual async ValueTask DisposeAsync(bool disposing)
+    {
+        if (_disposed)
+            return;
+
+        if (disposing)
+        {
+            if (_connection is DbConnection dbConnection)
+                await dbConnection.DisposeAsync();
+            else
+                _connection?.Dispose();
+        }
+
+        _disposed = true;
+    }
     
     /// <summary>
     /// A database connection to execute queries.
     /// </summary>
-    protected IDbConnection? Connection { get; }
-    
+    protected IDbConnection Connection
+    {
+        get
+        {
+            if (_connection is not null)
+                return _connection;
+
+            if (_unitOfWork is not null)
+                return _unitOfWork.Connection;
+
+            _connection = _connectionFactory?.GetConnection(Options.ConnectionKey) ??
+                          throw new InvalidOperationException(Strings.CouldNotGetConnection);
+
+            return _connection;
+        }
+    }
+
     /// <summary>
     /// A database transaction to execute queries.
     /// </summary>
-    protected IDbTransaction? Transaction { get; }
+    protected IDbTransaction? Transaction => _unitOfWork?.Transaction;
     
     /// <summary>
     /// A service to handle exceptions and possibly translate them to domain layer exceptions.
@@ -56,51 +108,6 @@ public abstract partial class DbRepository
     /// A set of options to customize the behavior of the repository.
     /// </summary>
     protected DbRepositoryOptions Options => DbRepositoryOptions.Resolve(GetType());
-
-    #region Connection Management 
-    /// <summary>
-    /// Gets the connection associated with the Transaction property.
-    /// If there is no transaction available, this method gets the value of the Connection property,
-    /// otherwise it gets a new connection from the object hold by the ConnectionFactory property. 
-    /// </summary>
-    /// <param name="key">An optional string value corresponding to the key of a connection configuration of the IDbConnectionFactory.</param>
-    /// <returns>A database connection.</returns>
-    /// <exception cref="InvalidOperationException"></exception>
-    protected IDbConnection GetConnection(string? key = null)
-        => Transaction?.Connection ??
-           Connection ??
-           ConnectionFactory?.GetConnection(key ?? Options.ConnectionKey) ??
-           throw new InvalidOperationException(Resources.Strings.CouldNotGetConnection);
-
-    /// <summary>
-    /// Disposes a database connection only if it's not equal to the value of
-    /// the Connection property nor the connection from the Transaction property.
-    /// </summary>
-    /// <param name="connection">The connection to dispose.</param>
-    protected void TryDisposeConnection(IDbConnection connection)
-    {
-        if (connection == Connection || connection == Transaction?.Connection)
-            return;
-
-        connection.Dispose();
-    }
-
-    /// <summary>
-    /// Asynchronously disposes a database connection only if it's not equal to the value of
-    /// the Connection property nor the connection from the Transaction property.
-    /// </summary>
-    /// <param name="connection">The connection to dispose.</param>
-    protected async Task TryDisposeConnectionAsync(IDbConnection connection)
-    {
-        if (connection == Connection || connection == Transaction?.Connection)
-            return;
-        
-        if (connection is DbConnection c)
-            await c.DisposeAsync();
-        else
-            connection.Dispose();
-    }
-    #endregion
 
     #region Parameter Resolution 
     /// <summary>
@@ -159,101 +166,6 @@ public abstract partial class DbRepository
             IEnumerable<string> enumerable => new DbParameterInfo(parameterName, null, null, null, enumerable.ToArray()),
             _ => new DbParameterInfo(parameterName, null, null, null, value)
         };
-    }
-    #endregion
-
-    #region Database Action
-
-    /// <summary>
-    /// Executes a query using the provided database connection.
-    /// </summary>
-    /// <param name="connection">The database connection.</param>
-    /// <param name="query">A delegate encapsulating a query to execute using the given connection.</param>
-    /// <typeparam name="T">The type of the expected result.</typeparam>
-    /// <returns>The result of the query.</returns>
-    protected virtual async Task<T> QueryAsync<T>(IDbConnection connection, Func<IDbConnection, Task<T>> query)
-    {
-        try
-        {
-            if (connection.State == ConnectionState.Closed)
-                connection.Open();
-            
-            return await query(connection);
-        }
-        catch (Exception exception)
-        {
-            if (ExceptionHandler is null)
-                throw;
-            
-            var newException = ExceptionHandler?.Handle(exception);
-            if (newException is not null)
-                throw newException;
-
-            throw;
-        }
-    }
-    
-    /// <summary>
-    /// Executes a query using a database connection resolved from the properties of this respository.
-    /// </summary>
-    /// <param name="query">A delegate encapsulating a query to execute.</param>
-    /// <typeparam name="T">The type of the expected result.</typeparam>
-    /// <returns>The result of the query.</returns>
-    protected virtual async Task<T> QueryAsync<T>(Func<IDbConnection, Task<T>> query)
-    {
-        var connection = GetConnection();
-        try
-        {
-            return await QueryAsync(connection, query);
-        }
-        finally
-        {
-            await TryDisposeConnectionAsync(connection);
-        }
-    }
-
-    /// <summary>
-    /// Executes a query using the provided database connection.
-    /// </summary>
-    /// <param name="connection">The database connection.</param>
-    /// <param name="query">A delegate encapsulating a query to execute using the given connection.</param>
-    protected virtual async Task ExecuteAsync(IDbConnection connection, Func<IDbConnection, Task> query)
-    {
-        try
-        {
-            if (connection.State == ConnectionState.Closed)
-                connection.Open();
-            
-            await query(connection);
-        }
-        catch (Exception exception)
-        {
-            if (ExceptionHandler is null)
-                throw;
-            
-            var newException = ExceptionHandler?.Handle(exception);
-            if (newException is not null)
-                throw newException;
-
-            throw;
-        }
-    }
-    
-    /// <summary>
-    /// Executes a query using a database connection resolved from the properties of this respository.
-    /// </summary>
-    /// <param name="query">A delegate encapsulating a query to execute using the given connection.</param>
-    protected virtual async Task ExecuteAsync(Func<IDbConnection, Task> query)
-    {
-        var connection = GetConnection();
-        try
-        {
-            await ExecuteAsync(connection, query);
-        }
-        finally
-        {
-            await TryDisposeConnectionAsync(connection);
-        }
     }
     #endregion
 }

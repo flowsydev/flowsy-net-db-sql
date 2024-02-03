@@ -1,6 +1,7 @@
 using System.Data;
 using System.Data.Common;
 using Flowsy.Db.Abstractions;
+using Flowsy.Db.Sql.Resources;
 
 namespace Flowsy.Db.Sql;
 
@@ -9,11 +10,18 @@ namespace Flowsy.Db.Sql;
 /// </summary>
 public abstract class DbUnitOfWork : IUnitOfWork
 {
-    protected DbUnitOfWork(IDbConnection connection)
+    private readonly DbConnectionFactory _connectionFactory;
+    private IDbConnection? _connection;
+    private bool _disposed;
+
+    public event EventHandler? WorkBegun;
+    public event EventHandler? WorkSaved;
+    public event EventHandler? WorkDiscarded;
+
+    protected DbUnitOfWork(DbConnectionFactory connectionFactory, DbExceptionHandler? exceptionHandler = null)
     {
-        Connection = connection;
-        Connection.Open();
-        Transaction = Connection.BeginTransaction();
+        _connectionFactory = connectionFactory;
+        ExceptionHandler = exceptionHandler;
     }
 
     ~DbUnitOfWork()
@@ -21,133 +29,32 @@ public abstract class DbUnitOfWork : IUnitOfWork
         Dispose(false);
     }
 
-    /// <summary>
-    /// The object representing the underlying transaction
-    /// </summary>
-    object IUnitOfWork.Transaction => Transaction;
-    
-    /// <summary>
-    /// The object representing the underlying transaction
-    /// </summary>
-    protected IDbTransaction Transaction { get; }
-
-    /// <summary>
-    /// The database connection.
-    /// </summary>
-    protected IDbConnection Connection { get; }
-
-    private bool _disposed;
-
-    /// <summary>
-    /// Persists all the changes made during the unit of work by committing the transaction to the underlying database.
-    /// </summary>
-    public void Save()
-    {
-        Transaction.Commit();
-        OnSaved();
-    }
-
-    
-    /// <summary>
-    /// Asynchronously persists all the changes made during the unit of work by committing the transaction to the underlying database.
-    /// </summary>
-    /// <param name="cancellationToken">The cancellation token for the operation.</param>
-    public async Task SaveAsync(CancellationToken cancellationToken)
-    {
-        if (Transaction is DbTransaction dbTransaction)
-            await dbTransaction.CommitAsync(cancellationToken);
-        else
-            Transaction.Commit();
-
-        OnSaved();
-    }
-
-    /// <summary>
-    /// Event raised when all the changes were saved successfully.
-    /// </summary>
-    public event EventHandler? Saved;
-    
-    /// <summary>
-    /// Raises the Saved event.
-    /// </summary>
-    protected virtual void OnSaved()
-    {
-        Saved?.Invoke(this, EventArgs.Empty);
-    }
-
-    public void Undo()
-    {
-        Transaction.Dispose();
-        Connection.Dispose();
-        OnUndone();
-    }
-
-    public async Task UndoAsync(CancellationToken cancellationToken)
-    {
-        if (Transaction is DbTransaction dbTransaction)
-            await dbTransaction.DisposeAsync();
-        else 
-            Transaction.Dispose();
-
-        if (Connection is DbConnection dbConnection)
-            await dbConnection.DisposeAsync();
-        else
-            Connection.Dispose();
-        
-        OnUndone();
-    }
-    
-    /// <summary>
-    /// Event raised when the changes were rolled back.
-    /// </summary>
-    public event EventHandler? Undone;
-    
-    /// <summary>
-    /// Raises the Undone event.
-    /// </summary>
-    protected virtual void OnUndone()
-    {
-        Undone?.Invoke(this, EventArgs.Empty);
-    }
-
-    /// <summary>
-    /// Triggers the disposal of the underlying connection which rolls back the uncommitted transaction. 
-    /// </summary>
     public void Dispose()
     {
         Dispose(true);
         GC.SuppressFinalize(this);
     }
 
-    /// <summary>
-    /// Asynchronously triggers the disposal of the underlying connection which rolls back the uncommitted transaction. 
-    /// </summary>
     public async ValueTask DisposeAsync()
     {
         await DisposeAsync(true);
         GC.SuppressFinalize(this);
     }
 
-    /// <summary>
-    /// Disposes the underlying connection which rolls back the uncommitted transaction.
-    /// </summary>
-    /// <param name="disposing">Indicates whether the object is being disposed.</param>
     protected virtual void Dispose(bool disposing)
     {
         if (_disposed) return;
 
         if (disposing)
         {
-            Undo();
+            TryRollbackTransaction();
+            _connection?.Dispose();
+            _connection = null;
         }
 
         _disposed = true;
     }
     
-    /// <summary>
-    /// Asynchronously disposes the underlying connection which rolls back the uncommitted transaction.
-    /// </summary>
-    /// <param name="disposing">Indicates whether the object is being disposed.</param>
     protected virtual async ValueTask DisposeAsync(bool disposing)
     {
         if (_disposed)
@@ -155,9 +62,127 @@ public abstract class DbUnitOfWork : IUnitOfWork
 
         if (disposing)
         {
-            await UndoAsync(CancellationToken.None);
+            await TryRollbackTransactionAsync(CancellationToken.None);
+            
+            if (_connection is DbConnection dbConnection)
+                await dbConnection.DisposeAsync();
+            else 
+                _connection?.Dispose();
+            
+            _connection = null;
         }
-
+        
         _disposed = true;
+    }
+
+    protected virtual void TryRollbackTransaction()
+    {
+        if (Transaction is null)
+            return;
+        
+        Transaction.Rollback();
+        Transaction = null;
+    }
+
+    protected virtual async Task TryRollbackTransactionAsync(CancellationToken cancellationToken)
+    {
+        if (Transaction is null)
+            return;
+        
+        if (Transaction is DbTransaction dbTransaction)
+            await dbTransaction.RollbackAsync(cancellationToken);
+        else
+            Transaction!.Rollback();
+        
+        Transaction = null;
+    }
+
+    protected DbUnitOfWorkOptions Options => DbUnitOfWorkOptions.Resolve(GetType());
+
+    protected internal IDbConnection Connection
+    {
+        get
+        {
+            if (_connection is not null)
+                return _connection;
+
+            _connection = _connectionFactory.GetConnection(Options.ConnectionKey) ??
+                          throw new InvalidOperationException(Strings.CouldNotGetConnection);
+            
+            if (_connection.State == ConnectionState.Closed)
+                _connection.Open();
+
+            return _connection;
+        }
+    }
+
+    protected internal IDbTransaction? Transaction { get; private set; }
+    
+    protected DbExceptionHandler? ExceptionHandler { get; }
+
+    private void ValidateTransactionalState()
+    {
+        if (_connection is null || Transaction is null)
+        {
+            throw new InvalidOperationException(
+                string.Format(Strings.MustBeginWorkByInvokingMethodX, nameof(BeginWork))
+            );
+        }
+    }
+
+    protected virtual void OnWorkBegun(EventArgs e)
+    {
+        WorkBegun?.Invoke(this, e);
+    }
+    
+    public virtual void BeginWork()
+    {
+        Transaction = Connection.BeginTransaction();
+        OnWorkBegun(EventArgs.Empty);
+    }
+
+    protected virtual void OnWorkSaved(EventArgs e)
+    {
+        WorkSaved?.Invoke(this, e);
+    }
+
+    public virtual void SaveWork()
+    {
+        ValidateTransactionalState(); 
+        
+        Transaction!.Commit();
+        
+        OnWorkSaved(EventArgs.Empty);
+    }
+
+    public virtual async Task SaveWorkAsync(CancellationToken cancellationToken)
+    {
+        ValidateTransactionalState();
+        
+        if (Transaction is DbTransaction dbTransaction)
+            await dbTransaction.CommitAsync(cancellationToken);
+        else
+            Transaction!.Commit();
+        
+        OnWorkSaved(EventArgs.Empty);
+    }
+
+    protected virtual void OnWorkDiscarded(EventArgs e)
+    {
+        WorkDiscarded?.Invoke(this, e);
+    }
+    
+    public virtual void DiscardWork()
+    {
+        ValidateTransactionalState();
+        TryRollbackTransaction();
+        OnWorkDiscarded(EventArgs.Empty);
+    }
+
+    public virtual async Task DiscardWorkAsync(CancellationToken cancellationToken)
+    {
+        ValidateTransactionalState();
+        await TryRollbackTransactionAsync(cancellationToken);
+        OnWorkDiscarded(EventArgs.Empty);
     }
 }

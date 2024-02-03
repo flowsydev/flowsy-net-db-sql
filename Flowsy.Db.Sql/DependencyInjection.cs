@@ -1,4 +1,3 @@
-using Flowsy.Db.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Flowsy.Db.Sql;
@@ -10,7 +9,7 @@ public static class DependencyInjection
         params DbConnectionConfiguration[] connectionConfigurations
         )
     {
-        services.AddSingleton<IDbConnectionFactory>(new DbConnectionFactory(connectionConfigurations));
+        services.AddSingleton(new DbConnectionFactory(connectionConfigurations));
         return services;
     }
     
@@ -21,11 +20,27 @@ public static class DependencyInjection
     /// <param name="implementationFactory">The factory that creates the service.</param>
     public static IServiceCollection AddDbConnectionFactory(
         this IServiceCollection services,
-        Func<IServiceProvider, IDbConnectionFactory> implementationFactory
+        Func<IServiceProvider, DbConnectionFactory> implementationFactory
         )
     {
         services.AddSingleton(implementationFactory);
         return services;
+    }
+    
+    /// <summary>
+    /// Registers and configures unit of work services.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    /// <param name="configureDefaults">Action to configure default options for all unit of work types.</param>
+    /// <returns></returns>
+    public static DbUnitOfWorkBuilder AddUnitOfWork(
+        this IServiceCollection services,
+        Action<DbUnitOfWorkOptions>? configureDefaults
+    )
+    {
+        var defaults = new DbUnitOfWorkOptions();
+        configureDefaults?.Invoke(defaults);
+        return new DbUnitOfWorkBuilder(services, defaults);
     }
 
     /// <summary>

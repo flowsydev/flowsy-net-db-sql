@@ -4,7 +4,7 @@ using Flowsy.Core;
 
 namespace Flowsy.Db.Sql.Convertions;
 
-public sealed class DbCaseConventionTypeMap : SqlMapper.ITypeMap
+public sealed class CaseConventionTypeMap : SqlMapper.ITypeMap
 {
     private readonly Type _type;
     private readonly CaseConvention _caseConvention;
@@ -12,7 +12,7 @@ public sealed class DbCaseConventionTypeMap : SqlMapper.ITypeMap
     private readonly Dictionary<ConstructorInfo, IDictionary<string, SqlMapper.IMemberMap>> _constructorMappings = new ();
     private readonly Dictionary<string, SqlMapper.IMemberMap> _memberMappings = new ();
 
-    public DbCaseConventionTypeMap(Type type, CaseConvention caseConvention)
+    public CaseConventionTypeMap(Type type, CaseConvention caseConvention)
     {
         _type = type;
         _caseConvention = caseConvention;

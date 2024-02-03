@@ -1,4 +1,4 @@
-using Flowsy.Db.Abstractions;
+using Flowsy.Db.Sql.Migrations;
 using Microsoft.Extensions.Configuration;
 
 namespace Flowsy.Db.Sql;
@@ -24,11 +24,12 @@ public static class ConfigurationExtensions
             {
                 var migrationSection = c.GetSection("Migration");
                 var sourceDirectory = migrationSection["SourceDirectory"];
-                var metadataSchema = migrationSection["MetadataSchema"];
-                var metadataTable = migrationSection["MetadataTable"];
+                var metadataTableSchema = migrationSection["MetadataTableSchema"];
+                var metadataTableName = migrationSection["MetadataTableName"];
                 var initializationStatement = migrationSection["InitializationStatement"];
-                var migration = sourceDirectory is not null && metadataTable is not null
-                    ? new DbMigrationConfiguration(sourceDirectory, metadataSchema, metadataTable, initializationStatement)
+                
+                var migration = sourceDirectory is not null && metadataTableSchema is not null && metadataTableName is not null
+                    ? new DbMigrationConfiguration(sourceDirectory, metadataTableSchema, metadataTableName, initializationStatement)
                     : null;
 
                 return new DbConnectionConfiguration

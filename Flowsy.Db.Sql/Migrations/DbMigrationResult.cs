@@ -1,6 +1,4 @@
-using Flowsy.Db.Abstractions;
-
-namespace Flowsy.Db.Sql;
+namespace Flowsy.Db.Sql.Migrations;
 
 public sealed class DbMigrationResult
 {

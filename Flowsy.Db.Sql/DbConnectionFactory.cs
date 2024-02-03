@@ -1,13 +1,12 @@
 using System.Data;
 using System.Data.Common;
-using Flowsy.Db.Abstractions;
 
 namespace Flowsy.Db.Sql;
 
 /// <summary>
 /// Obtains database connections from a list of DbConnectionConfiguration objects.
 /// </summary>
-public class DbConnectionFactory : IDbConnectionFactory
+public sealed class DbConnectionFactory
 {
     private readonly Dictionary<string, DbConnectionConfiguration> _connectionConfigurations;
     
@@ -32,7 +31,7 @@ public class DbConnectionFactory : IDbConnectionFactory
     /// </summary>
     /// <param name="key">The connection identifier. If omitted, the first DbConnectionConfiguration in the list will be used.</param>
     /// <returns>A database connection</returns>
-    public virtual IDbConnection GetConnection(string? key = null)
+    public IDbConnection GetConnection(string? key = null)
     {
         var k = key ?? _connectionConfigurations.Keys.First();
         if (!_connectionConfigurations.ContainsKey(k))

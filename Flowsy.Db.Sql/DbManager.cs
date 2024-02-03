@@ -1,7 +1,7 @@
 using System.Data;
 using System.Data.Common;
 using EvolveDb;
-using Flowsy.Db.Abstractions;
+using Flowsy.Db.Sql.Migrations;
 using Flowsy.Db.Sql.Resources;
 using Microsoft.Extensions.Logging;
 
@@ -9,18 +9,18 @@ namespace Flowsy.Db.Sql;
 
 public sealed class DbManager
 {
-    private readonly IDbConnectionFactory? _dbConnectionFactory;
+    private readonly DbConnectionFactory? _dbConnectionFactory;
     private readonly IEnumerable<DbConnectionConfiguration>? _connectionConfigurations;
     private readonly ILogger<DbManager>? _logger;
     private readonly Action<string>? _logAction;
     
-    public DbManager(IDbConnectionFactory dbConnectionFactory, ILogger<DbManager>? logger)
+    public DbManager(DbConnectionFactory dbConnectionFactory, ILogger<DbManager>? logger)
     {
         _dbConnectionFactory = dbConnectionFactory;
         _logger = logger;
     }
     
-    public DbManager(IDbConnectionFactory dbConnectionFactory, Action<string>? logAction)
+    public DbManager(DbConnectionFactory dbConnectionFactory, Action<string>? logAction)
     {
         _dbConnectionFactory = dbConnectionFactory;
         _logAction = logAction;
@@ -57,7 +57,7 @@ public sealed class DbManager
     private IEnumerable<DbConnectionConfiguration> GetConnectionConfigurations()
         => _dbConnectionFactory?.Configurations ??
            _connectionConfigurations ??
-           throw new InvalidOperationException("A connection factory or a connection configuration list was expected."); 
+           throw new InvalidOperationException(Strings.ConnectionFactoryOrConfigurationListWasExpected); 
 
     /// <summary>
     /// Runs database migrations for all the connections associated with the underlying IDbConnectionFactory instance.
@@ -81,7 +81,7 @@ public sealed class DbManager
                 .ToArray();
 
             if (!configurations.Any())
-                throw new InvalidOperationException("No connection configuration was found.");
+                throw new InvalidOperationException(Strings.NoConnectionConfigurationProvided);
             
             var results = new List<DbMigrationResult>();
             
@@ -92,7 +92,7 @@ public sealed class DbManager
                     if (configuration.Migration is null)
                     {
                         throw new InvalidOperationException(
-                            $"No migration configuration was provided for connection with key {configuration.Key}"
+                            $"{Strings.NoMigrationConfigurationProvidedForConnectionWithKey} {configuration.Key}"
                             );
                     }
 
@@ -101,7 +101,7 @@ public sealed class DbManager
                     if (connection is null)
                     {
                         throw new InvalidOperationException(
-                            $"Could not create a database connection for configuration with key {configuration.Key}"
+                            $"{Strings.CouldNotCreateDatabaseConnectionForConfigurationWithKey} {configuration.Key}"
                             );
                     }
 
@@ -114,8 +114,8 @@ public sealed class DbManager
                         {
                             configuration.Migration.SourceDirectory
                         },
-                        MetadataTableSchema = configuration.Migration.MetadataSchema ?? string.Empty,
-                        MetadataTableName = configuration.Migration.MetadataTable
+                        MetadataTableSchema = configuration.Migration.MetadataTableSchema,
+                        MetadataTableName = configuration.Migration.MetadataTableName
                     };
 
                     evolve.Migrate();
@@ -134,7 +134,7 @@ public sealed class DbManager
                 }
                 catch (Exception exception)
                 {
-                    LogError(exception, $"Database migration failed for connection with key {configuration.Key}");
+                    LogError(exception, $"{Strings.DatabaseMigrationFailedForConnectionWithKey} {configuration.Key}");
                     results.Add(new DbMigrationResult(configuration, exception));
                 }
             }

@@ -80,5 +80,35 @@ namespace Flowsy.Db.Sql.Resources {
                 return ResourceManager.GetString("InitializationStatementExecuted", resourceCulture);
             }
         }
+        
+        internal static string ConnectionFactoryOrConfigurationListWasExpected {
+            get {
+                return ResourceManager.GetString("ConnectionFactoryOrConfigurationListWasExpected", resourceCulture);
+            }
+        }
+        
+        internal static string NoMigrationConfigurationProvidedForConnectionWithKey {
+            get {
+                return ResourceManager.GetString("NoMigrationConfigurationProvidedForConnectionWithKey", resourceCulture);
+            }
+        }
+        
+        internal static string CouldNotCreateDatabaseConnectionForConfigurationWithKey {
+            get {
+                return ResourceManager.GetString("CouldNotCreateDatabaseConnectionForConfigurationWithKey", resourceCulture);
+            }
+        }
+        
+        internal static string DatabaseMigrationFailedForConnectionWithKey {
+            get {
+                return ResourceManager.GetString("DatabaseMigrationFailedForConnectionWithKey", resourceCulture);
+            }
+        }
+        
+        internal static string MustBeginWorkByInvokingMethodX {
+            get {
+                return ResourceManager.GetString("MustBeginWorkByInvokingMethodX", resourceCulture);
+            }
+        }
     }
 }

@@ -29,4 +29,19 @@
     <data name="InitializationStatementExecuted" xml:space="preserve">
         <value>Comando de inicialización ejecutado</value>
     </data>
+    <data name="ConnectionFactoryOrConfigurationListWasExpected" xml:space="preserve">
+        <value>Se esperaba una fábrica de conexiones o una lista de configuración de conexiones.</value>
+    </data>
+    <data name="NoMigrationConfigurationProvidedForConnectionWithKey" xml:space="preserve">
+        <value>No se proporcionó ninguna configuración de migración para la conexión con identificador</value>
+    </data>
+    <data name="CouldNotCreateDatabaseConnectionForConfigurationWithKey" xml:space="preserve">
+        <value>No se pudo crear una conexión de base de datos para la configuración con identificador</value>
+    </data>
+    <data name="DatabaseMigrationFailedForConnectionWithKey" xml:space="preserve">
+        <value>La migración de base de datos falló para la conexión con identificador</value>
+    </data>
+    <data name="MustBeginWorkByInvokingMethodX" xml:space="preserve">
+        <value>Debe iniciarse el trabajo invocando explícitamente el método {0}.</value>
+    </data>
 </root>
