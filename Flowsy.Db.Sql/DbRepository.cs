@@ -1,9 +1,6 @@
 using System.Data;
-using System.Data.Common;
 using Dapper;
 using Flowsy.Core;
-using Flowsy.Db.Abstractions;
-using Flowsy.Db.Sql.Resources;
 
 namespace Flowsy.Db.Sql;
 
@@ -12,16 +9,7 @@ namespace Flowsy.Db.Sql;
 /// </summary>
 public abstract partial class DbRepository
 {
-    private readonly DbConnectionFactory? _connectionFactory;
-    private readonly DbUnitOfWork? _unitOfWork;
-    private IDbConnection? _connection;
-    private bool _disposed;
-    
-    protected DbRepository(DbConnectionFactory connectionFactory, DbExceptionHandler? exceptionHandler = null)
-    {
-        _connectionFactory = connectionFactory;
-        ExceptionHandler = exceptionHandler;
-    }
+    private readonly DbUnitOfWork _unitOfWork;
     
     protected DbRepository(DbUnitOfWork unitOfWork, DbExceptionHandler? exceptionHandler = null)
     {
@@ -29,75 +17,10 @@ public abstract partial class DbRepository
         ExceptionHandler = exceptionHandler;
     }
     
-    ~DbRepository()
-    {
-        Dispose(false);
-    }
-    
-    public void Dispose()
-    {
-        Dispose(true);
-        GC.SuppressFinalize(this);
-    }
-
-    public async ValueTask DisposeAsync()
-    {
-        await DisposeAsync(true);
-        GC.SuppressFinalize(this);
-    }
-
-    protected virtual void Dispose(bool disposing)
-    {
-        if (_disposed) return;
-
-        if (disposing)
-        {
-            _connection?.Dispose();
-        }
-
-        _disposed = true;
-    }
-    
-    protected virtual async ValueTask DisposeAsync(bool disposing)
-    {
-        if (_disposed)
-            return;
-
-        if (disposing)
-        {
-            if (_connection is DbConnection dbConnection)
-                await dbConnection.DisposeAsync();
-            else
-                _connection?.Dispose();
-        }
-
-        _disposed = true;
-    }
-    
     /// <summary>
-    /// A database connection to execute queries.
+    /// A set of options to customize the behavior of the repository.
     /// </summary>
-    protected IDbConnection Connection
-    {
-        get
-        {
-            if (_connection is not null)
-                return _connection;
-
-            if (_unitOfWork is not null)
-                return _unitOfWork.Connection;
-
-            _connection = _connectionFactory?.GetConnection(Options.ConnectionKey) ??
-                          throw new InvalidOperationException(Strings.CouldNotGetConnection);
-
-            return _connection;
-        }
-    }
-
-    /// <summary>
-    /// A database transaction to execute queries.
-    /// </summary>
-    protected IDbTransaction? Transaction => _unitOfWork?.Transaction;
+    protected DbRepositoryOptions Options => DbRepositoryOptions.Resolve(GetType());
     
     /// <summary>
     /// A service to handle exceptions and possibly translate them to domain layer exceptions.
@@ -105,9 +28,14 @@ public abstract partial class DbRepository
     protected DbExceptionHandler? ExceptionHandler { get; }
 
     /// <summary>
-    /// A set of options to customize the behavior of the repository.
+    /// A database connection to execute queries.
     /// </summary>
-    protected DbRepositoryOptions Options => DbRepositoryOptions.Resolve(GetType());
+    protected IDbConnection Connection => _unitOfWork.Connection;
+
+    /// <summary>
+    /// A database transaction to execute queries.
+    /// </summary>
+    protected IDbTransaction? Transaction => _unitOfWork.Transaction;
 
     #region Parameter Resolution 
     /// <summary>

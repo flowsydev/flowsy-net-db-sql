@@ -5,18 +5,16 @@ namespace Flowsy.Db.Sql;
 public class DbRepositoryOptions
 {
     public DbRepositoryOptions()
-        : this(null, null, new DbConventionSet())
+        : this(null, new DbConventionSet())
     {
     }
 
-    public DbRepositoryOptions(string? connectionKey, string? schema, DbConventionSet conventions)
+    public DbRepositoryOptions(string? schema, DbConventionSet conventions)
     {
-        ConnectionKey = connectionKey;
         Schema = schema;
         Conventions = conventions;
     }
 
-    public string? ConnectionKey { get; set; }
     public string? Schema { get; set; }
     public DbConventionSet Conventions { get; set; }
 
@@ -36,5 +34,5 @@ public class DbRepositoryOptions
         => OptionsMap[repositoryType];
 
     public DbRepositoryOptions Clone()
-        => new(ConnectionKey, Schema, Conventions.Clone());
+        => new(Schema, Conventions.Clone());
 }

@@ -31,8 +31,7 @@ public static class DependencyInjection
     /// Registers and configures unit of work services.
     /// </summary>
     /// <param name="services">The service collection.</param>
-    /// <param name="configureDefaults">Action to configure default options for all unit of work types.</param>
-    /// <returns></returns>
+    /// <param name="configureDefaults">A function to configure default options for all unit of work types.</param>
     public static DbUnitOfWorkBuilder AddUnitOfWork(
         this IServiceCollection services,
         Action<DbUnitOfWorkOptions>? configureDefaults
@@ -41,20 +40,5 @@ public static class DependencyInjection
         var defaults = new DbUnitOfWorkOptions();
         configureDefaults?.Invoke(defaults);
         return new DbUnitOfWorkBuilder(services, defaults);
-    }
-
-    /// <summary>
-    /// Registers and configures repository services.
-    /// </summary>
-    /// <param name="services">The service collection.</param>
-    /// <param name="configureDefaults">Action to configure default options for all repository types.</param>
-    public static DbRepositoryBuilder AddRepositories(
-        this IServiceCollection services,
-        Action<DbRepositoryOptions> configureDefaults
-        )
-    {
-        var defaults = new DbRepositoryOptions();
-        configureDefaults(defaults);
-        return new DbRepositoryBuilder(services, defaults);
     }
 }

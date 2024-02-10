@@ -3,89 +3,248 @@
 This package includes implementations for interfaces defined in [Flows.Db.Abstractions](https://www.nuget.org/packages/Flowsy.Db.Abstractions)
 oriented to SQL databases.
 
+
 ## Connection Factory
 
 The class **DbConnectionFactory** creates **IDbConnection** objects from a list of registered configurations identified by unique keys.
 
 
-## Repositories
+## Unit Of Work
+
+The unit of work is necessary to build our data access components.
+
+The class **DbUnitOfWork** implements the interface **IUnitOfWork** and gets connections from a
+given **DbConnectionFactory** instance to create a **IDbTransaction** object to handle the whole unit of work.
+
+For example, to create an invoice, we may need to create two kinds of entities:
+
+* Invoice
+  * InvoiceId
+  * CustomerId
+  * CreateDate
+  * Total
+  * Taxes
+  * GrandTotal
+* InvoiceItem
+  * InvoiceItemId
+  * InvoiceId
+  * ProductId
+  * Quantity
+  * Amount
+
+All the operations related to a given invoice and its items must be performed within a single transaction represented by a unit of work.
+
+
+### Repositories
+Data access operations could be organized in separate repositories bound to the same unit of work.
 
 The class DbRepository offers an implementation of the repository pattern focused on database stored routines.
-
-Let's create an interface for a fictitious user repository:
+By inheriting from DbRepository we can reuse its methods to execute SQL statements and routines without writing many lines of boilerplate code.
 
 ```csharp
-public interface IUserRepository
+public interface IInvoiceRepository
 {
-    Task<User?> GetUserByIdAsync(Guid userId, CancellationToken cancellationToken);
-    Task<User?> GetUserByEmailAsync(string email, CancellationToken cancellationToken);
+    Task<Invoice?> GetByIdAsync(string invoiceId, CancellationToken cancellationToken);
+    Task CreateAsync(Invoice invoice, CancellationToken cancellationToken);
+    // More methods
+}
+
+public interface IInvoiceItemRepository
+{
+    Task<IEnumerable<InvoiceItem>> GetByInvoiceIdAsync(string invoiceId, CancellationToken cancellationToken);
+    Task CreateAsync(InvoiceItem invoiceItem, CancellationToken cancellationToken);
+    // More methods
 }
 ```
 
-Now we need to implement our interface:
-
+To simplify these examples, let's create only a simplified implementation of the IInvoiceRepository interface:
 ```csharp
-public class UserRepository : DbRepository, IUserRepository
+public class InvoiceRepository : DbRepository, IInvoiceRepository
 {
-    public UserRepository(DbConnectionFactory connectionFactory, DbExceptionHandler? exceptionHandler = null) 
-        : base(connectionFactory, exceptionHandler)
-    {
-    }
-
-    public UserRepository(DbUnitOfWork unitOfWork, DbExceptionHandler? exceptionHandler = null)
+    public InvoiceRepository(DbUnitOfWork unitOfWork, DbExceptionHandler? exceptionHandler = null)
         : base(unitOfWork, exceptionHandler)
     {
     }
     
-    public async Task<User?> GetUserByIdAsync(Guid userId, CancellationToken cancellationToken)
+    public async Task<Invoice?> GetByIdAsync(string invoiceId, CancellationToken cancellationToken)
     {
-        var user = await GetSingleOrDefaultAsync<User>(
-            "user_get_by_id", // stored function sf_user_get_by_id(uuid) (see configuration below)
+        var invoice = await GetSingleOrDefaultAsync<Invoice>(
+            "invoice_get_by_id", // stored function sales.invoice_get_by_id(text) (see configuration below)
             new
             {
-                UserId = userId
+                InvoiceId = invoiceId
             },
             cancellationToken
             );
-        
-        user.Roles = await GetManyAsync<UserRole>(
-            "user_role_get_by_user_id", // stored function sf_user_role_get_by_user_id(uuid) (see configuration below)
-            new
-            {
-                UserId = userId
-            },
-            cancellationToken
-            );
-        
-        return user;
+        return invoice;
     }
   
-    public async Task<User?> GetUserByEmailAsync(string email, CancellationToken cancellationToken)
+    public Task CreateAsync(Invoice invoice, CancellationToken cancellationToken)
     {
-        var user = await GetSingleOrDefaultAsync<User>(
-            "user_get_by_email", // stored function sf_user_get_by_email(varchar) (see configuration below)
+        return ExecuteRoutineAsync(
+            "invoice_create", // stored procedure sales.invoice_create(@p_invoice_id, @p_customer_id, ...) (see configuration below)
+            DbRoutineType.StoredProcedure,
             new
             {
-                Email = email
+                InvoiceId = invoiceId,
+                CustomerId = customerId,
+                // ...
             },
-            cancellationToken
+            cancellation
             );
-        
-        user.Roles = await GetManyAsync<UserRole>(
-            "user_role_get_by_user_id", // stored function sf_user_role_get_by_user_id(uuid) (see configuration below)
-            new
-            {
-                UserId = user.UserId
-            },
-            cancellationToken
-            );
-        
-        return user;
     }
 }
 ```
 
-By inheriting from DbRepository we can reuse its methods to execute SQL statements and routines without writing many lines of boilerplate code.
+The InvoiceItemRepository shall be implemented in a similar way but using stored routines related to invoice items.
+
+
+### Unit Of Work Interface and Implementation
+
+We can define a unit of work interface targeting the two repositories we've created.
+
+```csharp
+public interface ISalesUnitOfWork : IUnitOfWork
+{
+    IInvoiceRepository InvoiceRepository { get; }
+    IInvoiceItemRepository InvoiceItemRepository { get; }
+}
+```
+
+By inheriting from DbUnitOfWork we only need to create repository instances bound to our specific unit of work.
+The DbUnitOfWork class will handle the underlying connection and transaction.
+
+```csharp
+public class SalesUnitOfWork : DbUnitOfWork, ISalesUnitOfWork
+{
+    private readonly IInvoiceRepository? _invoiceRepository;
+    private readonly IInvoiceItemRepository? _invoiceItemRepository;
+  
+    public SalesUnitOfWork(DbConnectionFactory connectionFactory) : base(connectionFactory)
+    {
+    }
+    
+    // By using this pattern, repositories will be instantiated only when needed
+    // InvoiceRepository and InvoiceItemRepository classes shall implement their corresponding methods
+    // and those operations will be bounded to the transaction handled by this unit of work
+  
+    public IInvoiceRepository InvoiceRepository
+        => _invoiceRepository ??= new InvoiceRepository(this);
+  
+    public IInvoiceItemRepository InvoiceItemRepository
+        => _invoiceItemRepository ??= new InvoiceItemRepository(this);
+}
+```
+
+### Unit Of Work Factory
+
+To create instances of our unit of work, we need to provide an implementation of the **IUnitOfWorkFactory** interface.
+We can create a single unit of work factory or a unit of work factory per subdomain of our application. 
+
+```csharp
+public class SalesUnitOfWorkFactory : IUnitOfWorkFactory
+{
+    private readonly DbConnectionFactory _connectionFactory;
+    
+    public SalesUnitOfWorkFactory(DbConnectionFactory connectionFactory)
+    {
+        _connectionFactory = connectionFactory; 
+    }
+    
+    public T Create<T>() where T : IUnitOfWork
+    {
+        IUnitOfWork? unitOfWork = null;
+        
+        var type = typeof(T);
+        if (type == typeof(ISalesUnitOfWork))
+            unitOfWork = new SalesUnitOfWork(_connectionFactory);
+        // else if (type == typeof(IAnotherUnitOfWork))
+        //    unitOfWork = new AnotherUnitOfWork(_connectionFactory);
+        
+        if (unitOfWork is null)
+            throw new NotSupportedException();
+        
+        return (T) unitOfWork;
+    }
+}
+```
+
+
+### Using Our Units of Work
+
+The following examples shows how to use the unit of work factory to create a new instance of a unit of work: 
+
+```csharp
+public class InvoiceByIdQueryHandler
+{
+    private readonly ISalesUnitOfWorkFactory _unitOfWorkFactory;
+    
+    public InvoiceByIdQueryHandler(ISalesUnitOfWorkFactory unitOfWorkFactory)
+    {
+        _unitOfWorkFactory = unitOfWorkFactory;
+    }
+  
+    public async Task<InvoiceByIdQueryResult> HandleAsync(InvoiceByIdQuery query, CancellationToken cancellationToken)
+    {
+        await using var unitOfWork = _unitOfWorkFactory.Create<ISalesUnitOfWork>();
+        // The unitOfWork instance will be disposed when execution of HandleAsync is completed or any exception is thrown.
+        
+        var invoice = await unitOfWork.InvoiceRepository.GetByIdAsync(query.InvoiceId, cancellationToken);
+        if (invoice is null)
+            throw new EntityNotFoundException(query.InvoiceId);
+        
+        // Return the fictitious query result
+        return new InvoiceByIdQueryResult(invoice);
+    }
+}
+
+public class CreateInvoiceCommandHandler
+{
+    private readonly ISalesUnitOfWorkFactory _unitOfWorkFactory;
+    
+    public CreateInvoiceCommandHandler(ISalesUnitOfWorkFactory unitOfWorkFactory)
+    {
+        _unitOfWorkFactory = unitOfWorkFactory;
+    }
+  
+    public async Task<CreateInvoiceCommandResult> HandleAsync(CreateInvoiceCommand command, CancellationToken cancellationToken)
+    {
+        await using var unitOfWork = _unitOfWorkFactory.Create<ISalesUnitOfWork>();
+        // The unitOfWork instance will be disposed when execution of HandleAsync is completed or any exception is thrown.
+        // If the unit of work is disposed without invoking the SaveWork or SaveWorkAsync methods,
+        // the inner transaction will be rolled back discarding all the work of the unit.
+        
+        var invoice = new Invoice();
+        // Populate invoice object from properties of command object
+        
+        // Begin transactional operation
+        unitOfWork.BeginWork();
+      
+        // Create the Invoice entity
+        var invoiceId = await unitOfWork.InvoiceRepository.CreateAsync(invoice, cancellationToken);
+      
+        // Create all the InvoiceItem entities
+        foreach (var item in command.Items)
+        {
+            var invoiceItem = new InvoiceItem();
+            // Populate invoiceItem object from properties of the item object
+          
+            // Create each InvoiceItem entity
+            await unitOfWork.InvoiceItemRepository.CreateAsync(invoiceItem, cancellationToken); 
+        }
+
+        // Complete the transactional operation      
+        await unitOfWork.SaveWorkAsync(cancellationToken);
+      
+        // Return the result of the operation
+        return new CreateInvoiceCommandResult
+        {
+            InvoiceId = invoiceId
+        };
+    }
+}
+```
+
 
 ## Dependency Injection
 
@@ -121,40 +280,38 @@ The following code snippet shows a recommended configuration for database connec
 
 ### Register Services
 The previous configuration will allow us to use the GetConnectionConfigurations extension method
-for IConfiguration to configure our DbConnectionFactory instance.
+for IConfiguration objects to configure our DbConnectionFactory instance.
 
 ```csharp
 var builder = WebApplication.CreateBuilder(args);
+
+// Register the required database provider
+// In this example we're using PostgreSQL (requires the Npgsql Nuget)
+DbProviderFactories.RegisterFactory(DbProvider.PostgreSql, NpgsqlFactory.Instance);
 
 // Register a DbConnectionFactory service with the required configurations taken from the application settings
 builder.Services.AddDbConnectionFactory(serviceProvider =>
     {
       var configuration = serviceProvider.GetRequiredService<IConfiguration>();
-      var connectionConfigurations = configuration.GetConnectionConfigurations("Database");
+      var connectionConfigurations = configuration.GetConnectionConfigurations("Database"); // "Database" is the section name in the configuration file
       
       return new DbConnectionFactory(dbConnectionConfigurations.ToArray());
     });
 
+// Register unit of work services and repositories with their options
 builder.Services
-    .AddUnitOfWork(options => {
-        // Configure default options for all unit of work types.
-        options.ConnectionKey = "Default";
-    })
-    .Using<ISalesUnitOfWork, SalesUnitOfWork>();
-
-// Register repositories and configure their options
-builder.Services
+    .AddUnitOfWork(options => options.ConnectionKey = "Database1") // Default options for all units of work
+    .UsingFactory<ISalesUnitOfWorkFactory, SalesUnitOfWorkFactory>()
+    .WithUnit<SalesUnitOfWork>() // Can pass argument to customize options for each unit of work
     .AddRepositories(options =>
     {
         // Configure default options for all repository types.
         // All settings are optional, they have default values to use if a custom value is not set.
-        options.ConnectionKey = "Default";
         options.Schema = "public";
     
         options.Conventions.DateTimeOffsetFormat = DbDateTimeOffsetFormat.Utc;
     
         options.Conventions.Routines.DefaultType = DbRoutineType.StoredFunction;
-        options.Conventions.Routines.Prefix = "sf_";
         options.Conventions.Routines.Casing = null;
     
         options.Conventions.Parameters.Prefix = "p_";
@@ -170,18 +327,15 @@ builder.Services
 
         options.Conventions.Enums.ValueFormat = DbEnumFormat.Name;
     })
-    .Using<IUserRepository, UserRepository>(options =>
-    {
-        options.Schema = "security";
-    })
-    .Using<IInvoiceRepository, InvoiceRepository>(options =>
+    .WithRepository<InvoiceRepository>(options =>
     {
         options.Schema = "sales";
     })
-    .Using<IInvoiceItemRepository, InvoiceItemRepository>(options =>
+    .WithRepository<InvoiceItemRepository>(options =>
     {
         options.Schema = "sales";
     })
+    // .WithRepository<AnotherRepository>() // Use default options
     .WithColumnMapping(
         CaseConvention.LowerSnakeCase, // Database column names in lower_snake_case
         t => typeof(IEntity).IsAssignableFrom(t), // Apply this column mapping to entities implementing the fictitious IEntity interface
@@ -230,105 +384,3 @@ follow the specifications from [Evolve Concepts](https://evolve-db.netlify.app/c
 
 If you decide to take another approach or use another tool, you will need to take care of all the details to manage your database objects.
 
-
-## Unit Of Work
-
-The class **DbUnitOfWork** implements the interface **IUnitOfWork** and gets connections from a
-given **DbConnectionFactory** instance to create a **IDbTransaction** object to handle the whole unit of work.
-
-For example, to create an invoice, we may need to create two kinds of entities:
-
-* Invoice
-  * InvoiceId
-  * CustomerId
-  * CreateDate
-  * Total
-  * Taxes
-  * GrandTotal
-* InvoiceItem
-  * InvoiceItemId
-  * InvoiceId
-  * ProductId
-  * Quantity
-  * Amount
-
-A way of completing such operation from an application-level command handler could be:
-
-```csharp
-public interface ISalesUnitOfWork : IUnitOfWork
-{
-    IInvoiceRepository InvoiceRepository { get; }
-    IInvoiceItemRepository InvoiceItemRepository { get; }
-}
-```
-
-```csharp
-public class SalesUnitOfWork : DbUnitOfWork, ISalesUnitOfWork
-{
-    private readonly IInvoiceRepository? _invoiceRepository;
-    private readonly IInvoiceItemRepository? _invoiceItemRepository;
-  
-    public SalesUnitOfWork(DbConnectionFactory connectionFactory) : base(connectionFactory)
-    {
-    }
-    
-    // By using this pattern, repositories will be instantiated only when needed
-    // InvoiceRepository and InvoiceItemRepository classes shall implement their corresponding methods
-    // and those operations will be bounded to the transaction handled by this unit of work
-  
-    public IInvoiceRepository InvoiceRepository
-        => _invoiceRepository ??= new InvoiceRepository(this);
-  
-    public IInvoiceItemRepository InvoiceItemRepository
-        => _invoiceItemRepository ??= new InvoiceItemRepository(this);
-}
-```
-
-```csharp
-public class CreateInvoiceCommandHandler
-{
-    private readonly ISalesUnitOfWork _unitOfWork;
-  
-    // The unit of work will be injected here but its connection will be created
-    // only when one of its repositories executes the first query, and will be disposed
-    // automatically when the unit of work is disposed.
-    
-    // If the unit of work is disposed without invoking the SaveWork or SaveWorkAsync methods,
-    // the inner transaction will be rolled back discarding all the work of the unit.
-    public CreateInvoiceCommandHandler(ISalesUnitOfWork unitOfWork)
-    {
-        _unitOfWork = unitOfWork;
-    }
-  
-    public async Task<CreateInvoiceCommandResult> HandleAsync(CreateInvoiceCommand command, CancellationToken cancellationToken)
-    {
-        var invoice = new Invoice();
-        // Populate invoice object from properties of command object
-        
-        // Begin operation
-        _unitOfWork.BeginWork();
-      
-        // Create the Invoice entity
-        var invoiceId = await _unitOfWork.InvoiceRepository.CreateAsync(invoice, cancellationToken);
-      
-        // Create all the InvoiceItem entities
-        foreach (var item in command.Items)
-        {
-            var invoiceItem = new InvoiceItem();
-            // Populate invoiceItem object from properties of the item object
-          
-            // Create each InvoiceItem entity
-            await _unitOfWork.InvoiceItemRepository.CreateAsync(invoiceItem, cancellationToken); 
-        }
-
-        // Commit the current operation      
-        await _unitOfWork.SaveWorkAsync(cancellationToken);
-      
-        // Return the result of the operation
-        return new CreateInvoiceCommandResult
-        {
-            InvoiceId = invoiceId
-        };
-    }
-}
-```

@@ -2,62 +2,45 @@ using System.Reflection;
 using Dapper;
 using Flowsy.Core;
 using Flowsy.Db.Sql.Convertions;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace Flowsy.Db.Sql;
 
-public class DbRepositoryBuilder
+public sealed class DbRepositoryBuilder
 {
-    private readonly IServiceCollection _services;
     private readonly DbRepositoryOptions _defaultOptions;
 
-    internal DbRepositoryBuilder(IServiceCollection services, DbRepositoryOptions defaultOptions)
+    internal DbRepositoryBuilder(DbRepositoryOptions defaultOptions)
     {
-        _services = services;
         _defaultOptions = defaultOptions;
-    }
-
-    /// <summary>
-    /// Configures conventions for a repository type and adds it to the dependency injection system.
-    /// </summary>
-    /// <param name="configure">Action to execute to configure repository options.</param>
-    /// <typeparam name="TService">The service type.</typeparam>
-    /// <typeparam name="TImplementation">The implementation type.</typeparam>
-    public DbRepositoryBuilder Using<TService, TImplementation>(Action<DbRepositoryOptions>? configure = null) 
-        where TImplementation : DbRepository, TService
-        => Using(typeof(TService), typeof(TImplementation), configure);
-
-    /// <summary>
-    /// Configures conventions for a repository type and adds it to the dependency injection system.
-    /// </summary>
-    /// <param name="abstractionType">The type of the abstract interface.</param>
-    /// <param name="implementationType">The type of the concrete implementation.</param>
-    /// <param name="configure">Action to execute to configure repository options.</param>
-    public DbRepositoryBuilder Using(Type abstractionType, Type implementationType, Action<DbRepositoryOptions>? configure = null)
-    {
-        var options = _defaultOptions.Clone();
-        configure?.Invoke(options);
-        DbRepositoryOptions.Register(implementationType, options);
-        _services.AddTransient(abstractionType, implementationType);
-        return this;
     }
     
     /// <summary>
-    /// Configures conventions for a repository type and adds it to the dependency injection system.
+    /// Configures conventions for a spefici type of repository.
     /// </summary>
-    /// <param name="implementationFactory">The factory that creates the service.</param>
-    /// <param name="configure">Action to execute to configure repository options.</param>
-    /// <typeparam name="TService">The service type.</typeparam>
-    public DbRepositoryBuilder Using<TService>(Func<IServiceProvider, TService> implementationFactory, Action<DbRepositoryOptions>? configure = null) 
-        where TService : DbRepository
+    /// <param name="configure">Function to configure options for a specific type of repository.</param>
+    /// <typeparam name="TRepository">The type of repository.</typeparam>
+    public DbRepositoryBuilder WithRepository<TRepository>(Action<DbRepositoryOptions>? configure = null) 
+        where TRepository : DbRepository
     {        
         var options = _defaultOptions.Clone();
         configure?.Invoke(options);
-        DbRepositoryOptions.Register<TService>(options);
-        _services.AddTransient(implementationFactory);
+        DbRepositoryOptions.Register<TRepository>(options);
         return this;
     }
 
+    /// <summary>
+    /// Configures conventions for a spefici type of repository.
+    /// </summary>
+    /// <param name="repositoryType">The type of repository.</param>
+    /// <param name="configure">Function to configure options for a specific type of repository.</param>
+    public DbRepositoryBuilder WithRepository(Type repositoryType, Action<DbRepositoryOptions>? configure = null)
+    {
+        var options = _defaultOptions.Clone();
+        configure?.Invoke(options);
+        DbRepositoryOptions.Register(repositoryType, options);
+        return this;
+    }
+    
     /// <summary>
     /// Configures column mappings for query results based on a case convention.
     /// </summary>
