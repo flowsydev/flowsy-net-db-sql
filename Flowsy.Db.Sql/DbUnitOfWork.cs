@@ -81,19 +81,26 @@ public abstract class DbUnitOfWork : IUnitOfWork
             return;
         
         Transaction.Rollback();
+        Transaction.Dispose();
         Transaction = null;
     }
 
     protected virtual async Task TryRollbackTransactionAsync(CancellationToken cancellationToken)
     {
-        if (Transaction is null)
-            return;
-        
-        if (Transaction is DbTransaction dbTransaction)
-            await dbTransaction.RollbackAsync(cancellationToken);
-        else
-            Transaction!.Rollback();
-        
+        switch (Transaction)
+        {
+            case null:
+                return;
+            case DbTransaction dbTransaction:
+                await dbTransaction.RollbackAsync(cancellationToken);
+                await dbTransaction.DisposeAsync();
+                break;
+            default:
+                Transaction.Rollback();
+                Transaction.Dispose();
+                break;
+        }
+
         Transaction = null;
     }
 
@@ -151,6 +158,8 @@ public abstract class DbUnitOfWork : IUnitOfWork
         ValidateTransactionalState(); 
         
         Transaction!.Commit();
+        Transaction.Dispose();
+        Transaction = null;
         
         OnWorkSaved(EventArgs.Empty);
     }
@@ -158,11 +167,19 @@ public abstract class DbUnitOfWork : IUnitOfWork
     public virtual async Task SaveWorkAsync(CancellationToken cancellationToken)
     {
         ValidateTransactionalState();
-        
+
         if (Transaction is DbTransaction dbTransaction)
+        {
             await dbTransaction.CommitAsync(cancellationToken);
+            await dbTransaction.DisposeAsync();
+        }
         else
+        {
             Transaction!.Commit();
+            Transaction.Dispose();
+        }
+
+        Transaction = null;
         
         OnWorkSaved(EventArgs.Empty);
     }
