@@ -4,28 +4,64 @@ namespace Flowsy.Db.Sql;
 
 public abstract partial class DbRepository
 {
-    protected virtual Task<int> ExecuteRoutineAsync(
-        string simpleName,
+    protected virtual Task<T> ExecuteRoutineReturningSingleAsync<T>(
+        string routineSimpleName,
         dynamic? param,
         CancellationToken cancellationToken
     )
-        => ExecuteRoutineAsync(simpleName, ResolveRoutineType(), param as object, cancellationToken);
-
+        => GetSingleAsync<T>(routineSimpleName, param as object, cancellationToken);
+   
+    protected virtual Task<IEnumerable<T>> ExecuteRoutineReturningManyAsync<T>(
+        string routineSimpleName,
+        dynamic? param,
+        CancellationToken cancellationToken
+    )
+        => GetManyAsync<T>(routineSimpleName, param as object, cancellationToken);
+    
     protected virtual Task<int> ExecuteRoutineAsync(
-        string simpleName,
+        string routineSimpleName,
+        dynamic? param,
+        CancellationToken cancellationToken
+    )
+        => ExecuteRoutineAsync(routineSimpleName, ResolveRoutineType(), param as object, cancellationToken);
+
+    protected virtual async Task<int> ExecuteRoutineAsync(
+        string routineSimpleName,
         DbRoutineType? routineType,
         dynamic? param,
         CancellationToken cancellationToken
     )
     {
-        var dynamicParameters = param is not null ? ToDynamicParameters((object) param) : null;
-        return Connection.ExecuteAsync(new CommandDefinition(
-            ResolveRoutineStatement(simpleName, dynamicParameters, routineType),
-            dynamicParameters,
+        var dynamicParameters = param is not null ? ToDynamicParameters((object) param) : new DynamicParameters();
+        var routineFullName = ResolveRoutineName(routineSimpleName);
+        var preExecutionContext = new DbRoutinePreExecutionContext(
+            routineSimpleName,
+            routineFullName,
+            routineType ?? Options.Conventions.Routines.DefaultType,
+            dynamicParameters
+        ); 
+        OnExecutingRoutine(preExecutionContext);
+        
+        var commandText = ResolveRoutineStatement(routineSimpleName, preExecutionContext.Parameters, preExecutionContext.RoutineType);
+        var commandType = ResolveRoutineCommandType(preExecutionContext.RoutineType);
+        
+        LogCommandExecution(commandType, commandText, preExecutionContext.Parameters);
+        
+        var result = await Connection.ExecuteAsync(new CommandDefinition(
+            commandText,
+            preExecutionContext.Parameters,
             Transaction,
-            commandType: ResolveRoutineCommandType(routineType),
+            commandType: commandType,
             cancellationToken: cancellationToken
         ));
+        
+        return OnRoutineExecuted(new DbRoutinePostExecutionContext<int>(
+            preExecutionContext.RoutineSimpleName,
+            preExecutionContext.RoutineFullName,
+            preExecutionContext.RoutineType,
+            preExecutionContext.Parameters,
+            result
+            ));
     }
     
     protected virtual Task<IEnumerable<T>> GetManyAsync<T>(
@@ -35,20 +71,42 @@ public abstract partial class DbRepository
     )
         => GetManyAsync<T>(routineSimpleName, ResolveRoutineType(), param as object, cancellationToken);
     
-    protected virtual Task<IEnumerable<T>> GetManyAsync<T>(
+    protected virtual async Task<IEnumerable<T>> GetManyAsync<T>(
         string routineSimpleName,
         DbRoutineType? routineType,
         dynamic? param,
         CancellationToken cancellationToken
     )
     {
-        var dynamicParameters = param is not null ? ToDynamicParameters((object) param) : null;
-        return Connection.QueryAsync<T>(new CommandDefinition(
-            ResolveRoutineStatement(routineSimpleName, dynamicParameters, routineType),
-            dynamicParameters,
+        var dynamicParameters = param is not null ? ToDynamicParameters((object) param) : new DynamicParameters();
+        var routineFullName = ResolveRoutineName(routineSimpleName);
+        var preExecutionContext = new DbRoutinePreExecutionContext(
+            routineSimpleName,
+            routineFullName,
+            routineType ?? Options.Conventions.Routines.DefaultType,
+            dynamicParameters
+        ); 
+        OnExecutingRoutine(preExecutionContext);
+        
+        var commandText = ResolveRoutineStatement(routineSimpleName, preExecutionContext.Parameters, preExecutionContext.RoutineType);
+        var commandType = ResolveRoutineCommandType(preExecutionContext.RoutineType);
+        
+        LogCommandExecution(commandType, commandText, preExecutionContext.Parameters);
+        
+        var result = await Connection.QueryAsync<T>(new CommandDefinition(
+            commandText,
+            preExecutionContext.Parameters,
             Transaction,
-            commandType: ResolveRoutineCommandType(routineType),
+            commandType: commandType,
             cancellationToken: cancellationToken
+        ));
+        
+        return OnRoutineExecuted(new DbRoutinePostExecutionContext<IEnumerable<T>>(
+            preExecutionContext.RoutineSimpleName,
+            preExecutionContext.RoutineFullName,
+            preExecutionContext.RoutineType,
+            preExecutionContext.Parameters,
+            result
         ));
     }
 
@@ -59,20 +117,42 @@ public abstract partial class DbRepository
     )
         => GetFirstAsync<T>(routineSimpleName, ResolveRoutineType(), param as object, cancellationToken);
     
-    protected virtual Task<T> GetFirstAsync<T>(
+    protected virtual async Task<T> GetFirstAsync<T>(
         string routineSimpleName,
         DbRoutineType? routineType,
         dynamic? param,
         CancellationToken cancellationToken
     )
     {
-        var dynamicParameters = param is not null ? ToDynamicParameters((object) param) : null;
-        return Connection.QueryFirstAsync<T>(new CommandDefinition(
-            ResolveRoutineStatement(routineSimpleName, dynamicParameters, routineType),
-            dynamicParameters,
+        var dynamicParameters = param is not null ? ToDynamicParameters((object) param) : new DynamicParameters();
+        var routineFullName = ResolveRoutineName(routineSimpleName);
+        var preExecutionContext = new DbRoutinePreExecutionContext(
+            routineSimpleName,
+            routineFullName,
+            routineType ?? Options.Conventions.Routines.DefaultType,
+            dynamicParameters
+        ); 
+        OnExecutingRoutine(preExecutionContext);
+        
+        var commandText = ResolveRoutineStatement(routineSimpleName, preExecutionContext.Parameters, preExecutionContext.RoutineType);
+        var commandType = ResolveRoutineCommandType(preExecutionContext.RoutineType);
+        
+        LogCommandExecution(commandType, commandText, preExecutionContext.Parameters);
+        
+        var result = await Connection.QueryFirstAsync<T>(new CommandDefinition(
+            ResolveRoutineStatement(routineSimpleName, preExecutionContext.Parameters, preExecutionContext.RoutineType),
+            preExecutionContext.Parameters,
             Transaction,
-            commandType: ResolveRoutineCommandType(routineType),
+            commandType: commandType,
             cancellationToken: cancellationToken
+        ));
+        
+        return OnRoutineExecuted(new DbRoutinePostExecutionContext<T>(
+            preExecutionContext.RoutineSimpleName,
+            preExecutionContext.RoutineFullName,
+            preExecutionContext.RoutineType,
+            preExecutionContext.Parameters,
+            result
         ));
     }
 
@@ -83,20 +163,42 @@ public abstract partial class DbRepository
     )
         => GetFirstOrDefaultAsync<T>(routineSimpleName, ResolveRoutineType(), param as object, cancellationToken);
 
-    protected virtual Task<T?> GetFirstOrDefaultAsync<T>(
+    protected virtual async Task<T?> GetFirstOrDefaultAsync<T>(
         string routineSimpleName,
         DbRoutineType? routineType,
         dynamic? param,
         CancellationToken cancellationToken
     )
     {
-        var dynamicParameters = param is not null ? ToDynamicParameters((object) param) : null;
-        return Connection.QueryFirstOrDefaultAsync<T>(new CommandDefinition(
-            ResolveRoutineStatement(routineSimpleName, dynamicParameters, routineType),
-            dynamicParameters,
+        var dynamicParameters = param is not null ? ToDynamicParameters((object) param) : new DynamicParameters();
+        var routineFullName = ResolveRoutineName(routineSimpleName);
+        var preExecutionContext = new DbRoutinePreExecutionContext(
+            routineSimpleName,
+            routineFullName,
+            routineType ?? Options.Conventions.Routines.DefaultType,
+            dynamicParameters
+        );
+        OnExecutingRoutine(preExecutionContext);
+        
+        var commandText = ResolveRoutineStatement(routineSimpleName, preExecutionContext.Parameters, preExecutionContext.RoutineType);
+        var commandType = ResolveRoutineCommandType(preExecutionContext.RoutineType);
+        
+        LogCommandExecution(commandType, commandText, preExecutionContext.Parameters);
+        
+        var result = await Connection.QueryFirstOrDefaultAsync<T>(new CommandDefinition(
+            commandText,
+            preExecutionContext.Parameters,
             Transaction,
-            commandType: ResolveRoutineCommandType(routineType),
+            commandType: commandType,
             cancellationToken: cancellationToken
+        ));
+        
+        return OnRoutineExecuted(new DbRoutinePostExecutionContext<T?>(
+            preExecutionContext.RoutineSimpleName,
+            preExecutionContext.RoutineFullName,
+            preExecutionContext.RoutineType,
+            preExecutionContext.Parameters,
+            result
         ));
     }
 
@@ -107,20 +209,42 @@ public abstract partial class DbRepository
     )
         => GetSingleAsync<T>(routineSimpleName, ResolveRoutineType(), param as object, cancellationToken);
 
-    protected virtual Task<T> GetSingleAsync<T>(
+    protected virtual async Task<T> GetSingleAsync<T>(
         string routineSimpleName,
         DbRoutineType? routineType,
         dynamic? param,
         CancellationToken cancellationToken
     )
     {
-        var dynamicParameters = param is not null ? ToDynamicParameters((object) param) : null;
-        return Connection.QuerySingleAsync<T>(new CommandDefinition(
-            ResolveRoutineStatement(routineSimpleName, dynamicParameters, routineType),
-            dynamicParameters,
+        var dynamicParameters = param is not null ? ToDynamicParameters((object) param) : new DynamicParameters();
+        var routineFullName = ResolveRoutineName(routineSimpleName);
+        var preExecutionContext = new DbRoutinePreExecutionContext(
+            routineSimpleName,
+            routineFullName,
+            routineType ?? Options.Conventions.Routines.DefaultType,
+            dynamicParameters
+        );
+        OnExecutingRoutine(preExecutionContext);
+        
+        var commandText = ResolveRoutineStatement(routineSimpleName, preExecutionContext.Parameters, preExecutionContext.RoutineType);
+        var commandType = ResolveRoutineCommandType(preExecutionContext.RoutineType);
+        
+        LogCommandExecution(commandType, commandText, preExecutionContext.Parameters);
+        
+        var result = await Connection.QuerySingleAsync<T>(new CommandDefinition(
+            commandText,
+            preExecutionContext.Parameters,
             Transaction,
-            commandType: ResolveRoutineCommandType(routineType),
+            commandType: commandType,
             cancellationToken: cancellationToken
+        ));
+        
+        return OnRoutineExecuted(new DbRoutinePostExecutionContext<T>(
+            preExecutionContext.RoutineSimpleName,
+            preExecutionContext.RoutineFullName,
+            preExecutionContext.RoutineType,
+            preExecutionContext.Parameters,
+            result
         ));
     }
 
@@ -131,20 +255,42 @@ public abstract partial class DbRepository
     )
         => GetSingleOrDefaultAsync<T>(routineSimpleName, ResolveRoutineType(), param as object, cancellationToken);
     
-    protected virtual Task<T?> GetSingleOrDefaultAsync<T>(
+    protected virtual async Task<T?> GetSingleOrDefaultAsync<T>(
         string routineSimpleName,
         DbRoutineType? routineType,
         dynamic? param,
         CancellationToken cancellationToken
     )
     {
-        var dynamicParameters = param is not null ? ToDynamicParameters((object) param) : null;
-        return Connection.QuerySingleOrDefaultAsync<T>(new CommandDefinition(
-            ResolveRoutineStatement(routineSimpleName, dynamicParameters, routineType),
-            dynamicParameters,
+        var dynamicParameters = param is not null ? ToDynamicParameters((object) param) : new DynamicParameters();
+        var routineFullName = ResolveRoutineName(routineSimpleName);
+        var preExecutionContext = new DbRoutinePreExecutionContext(
+            routineSimpleName,
+            routineFullName,
+            routineType ?? Options.Conventions.Routines.DefaultType,
+            dynamicParameters
+        );
+        OnExecutingRoutine(preExecutionContext);
+        
+        var commandText = ResolveRoutineStatement(routineSimpleName, preExecutionContext.Parameters, preExecutionContext.RoutineType);
+        var commandType = ResolveRoutineCommandType(preExecutionContext.RoutineType);
+        
+        LogCommandExecution(commandType, commandText, preExecutionContext.Parameters);
+        
+        var result = await Connection.QuerySingleOrDefaultAsync<T>(new CommandDefinition(
+            commandText,
+            preExecutionContext.Parameters,
             Transaction,
-            commandType: ResolveRoutineCommandType(routineType),
+            commandType: commandType,
             cancellationToken: cancellationToken
+        ));
+        
+        return OnRoutineExecuted(new DbRoutinePostExecutionContext<T?>(
+            preExecutionContext.RoutineSimpleName,
+            preExecutionContext.RoutineFullName,
+            preExecutionContext.RoutineType,
+            preExecutionContext.Parameters,
+            result
         ));
     }
 
@@ -160,20 +306,42 @@ public abstract partial class DbRepository
             cancellationToken
         );
 
-    protected virtual Task<SqlMapper.GridReader> GetMultipleAsync(
+    protected virtual async Task<SqlMapper.GridReader> GetMultipleAsync(
         string routineSimpleName,
         DbRoutineType? routineType,
         dynamic? param,
         CancellationToken cancellationToken
     )
     {
-        var dynamicParameters = param is not null ? ToDynamicParameters((object) param) : null;
-        return Connection.QueryMultipleAsync(new CommandDefinition(
-            ResolveRoutineStatement(routineSimpleName, dynamicParameters, routineType),
-            dynamicParameters,
+        var dynamicParameters = param is not null ? ToDynamicParameters((object) param) : new DynamicParameters();
+        var routineFullName = ResolveRoutineName(routineSimpleName);
+        var preExecutionContext = new DbRoutinePreExecutionContext(
+            routineSimpleName,
+            routineFullName,
+            routineType ?? Options.Conventions.Routines.DefaultType,
+            dynamicParameters
+        );
+        OnExecutingRoutine(preExecutionContext);
+        
+        var commandText = ResolveRoutineStatement(routineSimpleName, preExecutionContext.Parameters, preExecutionContext.RoutineType);
+        var commandType = ResolveRoutineCommandType(preExecutionContext.RoutineType);
+        
+        LogCommandExecution(commandType, commandText, preExecutionContext.Parameters);
+        
+        var result = await Connection.QueryMultipleAsync(new CommandDefinition(
+            commandText,
+            preExecutionContext.Parameters,
             Transaction,
-            commandType: ResolveRoutineCommandType(routineType),
+            commandType: commandType,
             cancellationToken: cancellationToken
+        ));
+        
+        return OnRoutineExecuted(new DbRoutinePostExecutionContext<SqlMapper.GridReader>(
+            preExecutionContext.RoutineSimpleName,
+            preExecutionContext.RoutineFullName,
+            preExecutionContext.RoutineType,
+            preExecutionContext.Parameters,
+            result
         ));
     }
 }

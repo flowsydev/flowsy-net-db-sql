@@ -1,3 +1,5 @@
+using Flowsy.Db.Sql.Resources;
+
 namespace Flowsy.Db.Sql;
 
 public sealed class DbUnitOfWorkOptions
@@ -15,9 +17,14 @@ public sealed class DbUnitOfWorkOptions
 
     public static DbUnitOfWorkOptions Resolve<T>() where T : DbUnitOfWork
         => Resolve(typeof(T));
-    
+
     public static DbUnitOfWorkOptions Resolve(Type unitOfWorkType)
-        => OptionsMap[unitOfWorkType];
+    {
+        if (OptionsMap.TryGetValue(unitOfWorkType, out var options))
+            return options;
+
+        throw new InvalidOperationException(string.Format(Strings.NoOptionsRegisteredForX, unitOfWorkType.Name));
+    }
 
     public DbUnitOfWorkOptions Clone() => new ()
     {

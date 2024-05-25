@@ -326,6 +326,18 @@ builder.Services
         };
 
         options.Conventions.Enums.ValueFormat = DbEnumFormat.Name;
+        
+        options.JsonSerialization = new JsonSerializerOptions
+        {
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+            Converters = new List<JsonConverter>
+            {
+                // Custom converters
+            },
+            // More options
+        };
+        
+        options.LogLevel = LogLevel.Debug;
     })
     .WithRepository<InvoiceRepository>(options =>
     {

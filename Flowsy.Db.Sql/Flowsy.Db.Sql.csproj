@@ -15,7 +15,7 @@
         <RepositoryType>git</RepositoryType>
         <RepositoryUrl>https://github.com/flowsydev/flowsy-net-db-sql</RepositoryUrl>
 
-        <PackageVersion>4.0.1</PackageVersion>
+        <PackageVersion>4.1.0</PackageVersion>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
         <PackageReadmeFile>README.md</PackageReadmeFile>
 
@@ -23,13 +23,14 @@
     </PropertyGroup>
     
     <ItemGroup>
-        <PackageReference Include="Dapper" Version="2.1.28" />
+        <PackageReference Include="Dapper" Version="2.1.35" />
         <PackageReference Include="Evolve" Version="3.2.0" />
-        <PackageReference Include="Flowsy.Core" Version="4.0.0" />
+        <PackageReference Include="Flowsy.Core" Version="4.1.0" />
         <PackageReference Include="Flowsy.Db.Abstractions" Version="1.1.0" />
         <PackageReference Include="Microsoft.Extensions.Configuration" Version="8.0.0" />
-        <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.0" />
-        <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.0" />
+        <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.1" />
+        <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.1" />
+        <PackageReference Include="System.Text.Json" Version="8.0.3" />
     </ItemGroup>
 
     <ItemGroup>

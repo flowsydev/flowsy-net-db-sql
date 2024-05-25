@@ -44,4 +44,7 @@
     <data name="MustBeginWorkByInvokingMethodX" xml:space="preserve">
         <value>Must begin work by explicitly invoking the method {0}.</value>
     </data>
+    <data name="NoOptionsRegisteredForX" xml:space="preserve">
+        <value>No options registered for {0}.</value>
+    </data>
 </root>

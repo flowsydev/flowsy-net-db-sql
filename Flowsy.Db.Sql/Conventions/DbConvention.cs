@@ -37,7 +37,10 @@ public abstract class DbConvention
         if (!string.IsNullOrEmpty(Prefix))
             builder.Append(Prefix);
 
-        builder.Append(simpleName.ApplyConvention(Casing));
+        if (Casing.HasValue && !simpleName.SatisfiesConvention(Casing.Value))
+            builder.Append(simpleName.ApplyConvention(Casing));
+        else
+            builder.Append(simpleName);
         
         if (!string.IsNullOrEmpty(Suffix))
             builder.Append(Suffix);

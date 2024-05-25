@@ -110,5 +110,11 @@ namespace Flowsy.Db.Sql.Resources {
                 return ResourceManager.GetString("MustBeginWorkByInvokingMethodX", resourceCulture);
             }
         }
+        
+        internal static string NoOptionsRegisteredForX {
+            get {
+                return ResourceManager.GetString("NoOptionsRegisteredForX", resourceCulture);
+            }
+        }
     }
 }

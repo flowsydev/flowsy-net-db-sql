@@ -1,6 +1,8 @@
 using System.Data;
+using System.Text.Json;
 using Dapper;
 using Flowsy.Core;
+using Microsoft.Extensions.Logging;
 
 namespace Flowsy.Db.Sql;
 
@@ -11,10 +13,11 @@ public abstract partial class DbRepository
 {
     private readonly DbUnitOfWork _unitOfWork;
     
-    protected DbRepository(DbUnitOfWork unitOfWork, DbExceptionHandler? exceptionHandler = null)
+    protected DbRepository(DbUnitOfWork unitOfWork, DbExceptionHandler? exceptionHandler = null, ILogger? logger = null)
     {
         _unitOfWork = unitOfWork;
         ExceptionHandler = exceptionHandler;
+        Logger = logger;
     }
     
     /// <summary>
@@ -26,6 +29,11 @@ public abstract partial class DbRepository
     /// A service to handle exceptions and possibly translate them to domain layer exceptions.
     /// </summary>
     protected DbExceptionHandler? ExceptionHandler { get; }
+    
+    /// <summary>
+    /// A logger to write diagnostic messages.
+    /// </summary>
+    protected ILogger? Logger { get; }
 
     /// <summary>
     /// A database connection to execute queries.
@@ -36,6 +44,15 @@ public abstract partial class DbRepository
     /// A database transaction to execute queries.
     /// </summary>
     protected IDbTransaction? Transaction => _unitOfWork.Transaction;
+    
+    /// <summary>
+    /// Serializes an object to a JSON string.
+    /// </summary>
+    /// <param name="value">The object to serialize.</param>
+    /// <typeparam name="T">The type of object to serialize.</typeparam>
+    /// <returns>A JSON string representing the object.</returns>
+    protected virtual string SerializeJson<T>(T value)
+        => JsonSerializer.Serialize(value, Options.JsonSerialization);
 
     #region Parameter Resolution 
     /// <summary>
@@ -62,6 +79,19 @@ public abstract partial class DbRepository
         }
         
         return parameters;
+    }
+
+    protected virtual IReadOnlyDictionary<string, object?> ToReadOnlyDictionary(DynamicParameters dynamicParameters)
+    {
+        var dictionary = new Dictionary<string, object?>();
+        
+        foreach (var name in dynamicParameters.ParameterNames)
+        {
+            var value = dynamicParameters.Get<object>(name);
+            dictionary.Add(name, value);
+        }
+
+        return dictionary;
     }
     
     /// <summary>
@@ -92,8 +122,36 @@ public abstract partial class DbRepository
             IEnumerable<decimal> enumerable => new DbParameterInfo(parameterName, null, null, null, enumerable.ToArray()),
             IEnumerable<bool> enumerable => new DbParameterInfo(parameterName, null, null, null, enumerable.ToArray()),
             IEnumerable<string> enumerable => new DbParameterInfo(parameterName, null, null, null, enumerable.ToArray()),
+            IDictionary<string, object?> dictionary => new DbParameterInfo(parameterName, null, null, null, SerializeJson(dictionary)),
             _ => new DbParameterInfo(parameterName, null, null, null, value)
         };
     }
+    #endregion
+    
+    #region Execution Events
+    protected virtual void LogCommandExecution(CommandType commandType, string commandText, DynamicParameters dynamicParameters)
+    {
+        Logger?.Log(
+            Options.LogLevel,
+            "Executing command ({CommandType}): {CommandText} [ {@Parameters} ]",
+            commandType,
+            commandText,
+            ToReadOnlyDictionary(dynamicParameters)
+        );
+    }
+    
+    protected virtual void OnExecutingRoutine(DbRoutinePreExecutionContext context)
+    {
+    }
+
+    protected virtual TResult OnRoutineExecuted<TResult>(DbRoutinePostExecutionContext<TResult> context)
+        => context.Result;
+    
+    protected virtual void OnExecutingStatement(DbStatementPreExecutionContext context)
+    {
+    }
+    
+    protected virtual TResult OnStatementExecuted<TResult>(DbStatementPostExecutionContext<TResult> context)
+        => context.Result;
     #endregion
 }
