@@ -26,6 +26,10 @@ public sealed class DbParameterConvention : DbConvention
     /// </summary>
     public FormatRoutineParameterPlaceholder FormatPlaceholder { get; set; }
     
+    /// <summary>
+    /// Clones the current instance.
+    /// </summary>
+    /// <returns>A new instance with the same values as the current instance.</returns>
     public override DbConvention Clone()
         => new DbParameterConvention(Prefix, Suffix, Casing, FormatPlaceholder);
 }

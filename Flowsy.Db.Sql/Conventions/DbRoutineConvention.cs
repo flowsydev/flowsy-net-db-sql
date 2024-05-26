@@ -6,7 +6,7 @@ namespace Flowsy.Db.Sql.Conventions;
 /// <summary>
 /// Represents a set of conventions used to handle database routines.
 /// </summary>
-public sealed class DbRoutineConvention : DbConvention
+public sealed class DbRoutineConvention : DbSchemaChildConvention
 {
     public DbRoutineConvention()
         : this(null, null, null, DbRoutineType.StoredProcedure)
@@ -27,11 +27,15 @@ public sealed class DbRoutineConvention : DbConvention
     /// <summary>
     /// Resolves a CommandType value based on the provided DbRoutineType.
     /// </summary>
-    /// <param name="routineType"></param>
-    /// <returns></returns>
+    /// <param name="routineType">The routine type.</param>
+    /// <returns>The command type.</returns>
     public CommandType ResolveCommandType(DbRoutineType routineType)
         => routineType == DbRoutineType.StoredFunction ? CommandType.Text : CommandType.StoredProcedure;
     
+    /// <summary>
+    /// Clones the current instance.
+    /// </summary>
+    /// <returns>A new instance with the same values as the current instance.</returns>
     public override DbConvention Clone()
         => new DbRoutineConvention(Prefix, Suffix, Casing, DefaultType);
 }

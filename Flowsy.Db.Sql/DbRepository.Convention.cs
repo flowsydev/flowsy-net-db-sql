@@ -8,14 +8,30 @@ public abstract partial class DbRepository
     /// <summary>
     /// Resolves the name of a database schema using the options set for this repository. 
     /// </summary>
-    /// <returns></returns>
+    /// <returns>The schema name or null if no schema is set.</returns>
     protected virtual string? ResolveSchemaName() => Options.Schema;
+    
+    /// <summary>
+    /// Resolves the name for a table using the conventions set for this repository.
+    /// </summary>
+    /// <param name="simpleName">The table name without prefix or suffix.</param>
+    /// <returns>The formatted table name.</returns>
+    protected virtual string ResolveTableName(string simpleName)
+        => Options.Conventions.Tables.Format(simpleName, ResolveSchemaName());
+    
+    /// <summary>
+    /// Resolves the name for a column using the conventions set for this repository.
+    /// </summary>
+    /// <param name="simpleName">The column name without prefix or suffix.</param>
+    /// <returns>The formatted column name.</returns>
+    protected virtual string ResolveColumnName(string simpleName)
+        => Options.Conventions.Columns.Format(simpleName);
     
     /// <summary>
     /// Resolves the name for a stored routine using the conventions set for this repository.
     /// </summary>
-    /// <param name="simpleName">The routine simple name.</param>
-    /// <returns>The final routine name.</returns>
+    /// <param name="simpleName">The name without prefix or suffix.</param>
+    /// <returns>The formatted routine name.</returns>
     protected virtual string ResolveRoutineName(string simpleName)
         => Options.Conventions.Routines.Format(simpleName, ResolveSchemaName());
 
@@ -37,7 +53,7 @@ public abstract partial class DbRepository
     /// <summary>
     /// Resolves the required SQL statement to invoke the target stored routine or stored function.
     /// </summary>
-    /// <param name="routineSimpleName">The routine simple name.</param>
+    /// <param name="routineSimpleName">The routine name without prefix or suffix.</param>
     /// <param name="parameters">The routine parameters.</param>
     /// <param name="routineType">The type of routine.</param>
     /// <returns>The final SQL statement for the routine.</returns>
@@ -74,8 +90,8 @@ public abstract partial class DbRepository
     /// <summary>
     /// Resolves the name for a routine parameter using the conventions set for this repository.
     /// </summary>
-    /// <param name="simpleName">The parameter simple name</param>
-    /// <returns>The final parameter name.</returns>
+    /// <param name="simpleName">The parameter name without prefix or suffix.</param>
+    /// <returns>The formatted parameter name.</returns>
     protected virtual string ResolveRoutineParameterName(string simpleName)
         => Options.Conventions.Parameters.Format(simpleName);
 

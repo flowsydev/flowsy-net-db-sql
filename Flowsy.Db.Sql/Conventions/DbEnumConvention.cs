@@ -62,7 +62,7 @@ public sealed class DbEnumConvention : DbConvention
     /// Resolves the type for an enum sent to the underlying database.
     /// </summary>
     /// <param name="e">The enum value</param>
-    /// <returns></returns>
+    /// <returns>The database type.</returns>
     public DbType ResolveOrdinalType(Enum e)
         => e.GetTypeCode() switch
         {
@@ -72,6 +72,10 @@ public sealed class DbEnumConvention : DbConvention
             _ => DbType.Int32
         };
 
+    /// <summary>
+    /// Clones the current instance.
+    /// </summary>
+    /// <returns>A new instance with the same values as the current instance.</returns>
     public override DbConvention Clone()
         => new DbEnumConvention(Prefix, Suffix, Casing, ValueFormat);
 }

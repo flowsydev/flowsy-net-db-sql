@@ -309,10 +309,12 @@ builder.Services
         // All settings are optional, they have default values to use if a custom value is not set.
         options.Schema = "public";
     
-        options.Conventions.DateTimeOffsetFormat = DbDateTimeOffsetFormat.Utc;
-    
+        options.Conventions.Tables.Casing = CaseConvention.LowerSnakeCase;
+        
+        options.Conventions.Columns.Casing = CaseConvention.LowerSnakeCase;
+        
         options.Conventions.Routines.DefaultType = DbRoutineType.StoredFunction;
-        options.Conventions.Routines.Casing = null;
+        options.Conventions.Routines.Casing = CaseConvention.LowerSnakeCase;
     
         options.Conventions.Parameters.Prefix = "p_";
         options.Conventions.Parameters.Casing = CaseConvention.LowerSnakeCase;
@@ -325,6 +327,7 @@ builder.Services
             };
         };
 
+        options.Conventions.DateTimeOffsetFormat = DbDateTimeOffsetFormat.Utc;
         options.Conventions.Enums.ValueFormat = DbEnumFormat.Name;
         
         options.JsonSerialization = new JsonSerializerOptions
